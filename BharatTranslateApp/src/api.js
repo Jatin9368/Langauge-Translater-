@@ -61,6 +61,17 @@ export const rephraseEmotion = async ({ text, emotion, targetLang }) => {
   }
 };
 
+// ─── Style Rephrase ───────────────────────────────────────────────────────────
+
+export const rephraseStyle = async ({ text, targetLang }) => {
+  try {
+    const res = await api.post('/api/style/rephrase', { text, targetLang });
+    return res.data;
+  } catch (err) {
+    throw err;
+  }
+};
+
 // ─── History ─────────────────────────────────────────────────────────────────
 
 export const fetchHistory = async (page = 1, limit = 20) => {

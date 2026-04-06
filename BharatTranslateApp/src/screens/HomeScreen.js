@@ -18,6 +18,7 @@ import { useTheme } from '../ThemeContext';
 import LanguagePicker from '../components/LanguagePicker';
 import EmotionSelector from '../components/EmotionSelector';
 import TTSButton from '../components/TTSButton';
+import StyleSelector from '../components/StyleSelector';
 import { translateText, rephraseEmotion } from '../api';
 import { SOURCE_LANGUAGES, TARGET_LANGUAGES, getLanguageByCode } from '../languages';
 
@@ -63,10 +64,12 @@ const HomeScreen = () => {
       Alert.alert('Kuch likhein', 'Pehle kuch text daalo phir translate karein.');
       return;
     }
+    // Turant loading show karo
     setTranslating(true);
+    setOutputText('');
     setActiveEmotion(null);
     setEmotionText('');
-    setOutputText('');
+    setEmotionVoiceText('');
     try {
       const sourceLangObj = getLanguageByCode(sourceLang);
       const targetLangObj = getLanguageByCode(targetLang);
@@ -343,6 +346,12 @@ const HomeScreen = () => {
           activeEmotion={activeEmotion}
           loading={emotionLoading}
           disabled={!outputText.trim() || translating}
+        />
+
+        {/* Style Selector */}
+        <StyleSelector
+          outputText={outputText}
+          targetLang={targetLang}
         />
       </ScrollView>
     </KeyboardAvoidingView>
