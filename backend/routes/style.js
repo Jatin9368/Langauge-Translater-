@@ -14,8 +14,7 @@ const isValidText = (text) => {
 const translateTo = async (text, targetLang) => {
   if (!targetLang || targetLang === 'en') return text;
   try {
-    const res = await axios.post(
-      PRAVAHAI_URL,
+    const res = await axios.post(PRAVAHAI_URL,
       [{ text, from: 'en', to: targetLang }],
       { headers: { 'Content-Type': 'application/json' }, timeout: 8000 }
     );
@@ -29,95 +28,107 @@ const translateTo = async (text, targetLang) => {
   return text;
 };
 
-// Language ke hisaab se style templates
-const getStyleTemplates = (text, targetLang) => {
-  const t = text.replace(/[.!?]+$/, '').trim();
+const toEnglish = async (text) => {
+  try {
+    const res = await translate(text, { to: 'en' });
+    return res.text;
+  } catch (e) { return text; }
+};
 
-  // Hindi templates
-  if (targetLang === 'hi' || targetLang === 'ur') {
-    return {
-      genz: `Yo yaar! "${t}" 😎 No cap, yeh toh ekdum different level ka hai fr fr! Bestie, periodt! Slay kar diya!`,
-      formal: `आदरणीय महोदय/महोदया, मैं आपको सूचित करना चाहता/चाहती हूँ कि "${t}"। आशा है यह संदेश आपको स्वस्थ पाए। कृपया शीघ्र उत्तर दें।`,
-      funny: `Bhai sun, kisi ne nahi pucha tha lekin plot twist — "${t}"?! Aaj uthke chaos choose kiya maine! Tumhe aisa bolne ki permission kisne di?! 10/10, welcome hai yeh life update 😂`,
-    };
-  }
+// 6 styles — Hindi direct templates
+const buildHindi = (t) => ({
+  gen_z:      `Bhai chal, ${t}! Ekdum lit hai yaar, no cap! 🔥`,
+  formal:     `Aapko vinamrata se suchit kiya jaata hai ki ${t}. Kripya uchit dhyan dein.`,
+  funny:      `Arre bhai, ${t}?! Matlab seriously?! Kya scene hai yaar, hasi aa gayi! 😂`,
+  emotional:  `Yaar... ${t}... dil bhar aaya, sach mein bahut kuch feel ho raha hai abhi... 🥺`,
+  robot:      `STATEMENT: ${t}. YEH INFORMATION PROCESS HO GAYI HAI. AAGE BADHEIN.`,
+  dadi:       `Arrey beta, ${t}! Hamare zamane mein aisa nahi hota tha, par theek hai, bhagwan bhala kare! 🙏`,
+});
 
-  // Tamil templates
-  if (targetLang === 'ta') {
-    return {
-      genz: `Yo da! "${t}" - No cap fr fr, idu different level da! Bestie, periodt! Slay!`,
-      formal: `மதிப்பிற்குரிய ஐயா/அம்மா, "${t}" என்பதை உங்களுக்கு தெரிவிக்க விரும்புகிறேன். நீங்கள் நலமாக இருப்பீர்கள் என நம்புகிறேன்.`,
-      funny: `Yaaru kekala, plot twist — "${t}"?! Bro chaos choose panniten today! 10/10 welcome da 😂`,
-    };
-  }
+const buildTamil = (t) => ({
+  gen_z:      `Da, ${t}! Romba lit da, no cap! 🔥`,
+  formal:     `Ungalukku vinamragaa theriyapaduthuven — ${t}. Kavanam seluththavum.`,
+  funny:      `Aiyo, ${t}?! Seriously solra? Enna scene da idhu! 😂`,
+  emotional:  `Yaar... ${t}... manasu niraindhudhu, romba feel aagudhu... 🥺`,
+  robot:      `STATEMENT: ${t}. THAKAVAL PROCESS AAGIVIDHU. THODARVUM.`,
+  dadi:       `Amma, ${t}! Namma kaalaththil ipdi illai, sari, kadavul arul puriyattum! 🙏`,
+});
 
-  // Telugu templates
-  if (targetLang === 'te') {
-    return {
-      genz: `Yo bro! "${t}" - No cap fr fr, idi different level! Bestie, periodt! Slay!`,
-      formal: `గౌరవనీయులైన మహాశయా, "${t}" అని మీకు తెలియజేయాలనుకుంటున్నాను. మీరు ఆరోగ్యంగా ఉంటారని ఆశిస్తున్నాను.`,
-      funny: `Emi adgaledu kani plot twist — "${t}"?! Bro chaos choose chesanu today! 10/10 welcome 😂`,
-    };
-  }
+const buildEnglish = (t) => ({
+  gen_z:      `Bro, ${t}! That's literally so lit, no cap fr fr! 🔥`,
+  formal:     `I would like to formally bring to your attention that ${t}. Kindly take note.`,
+  funny:      `Wait wait wait — ${t}?! Seriously though?! What a scene, I can't even! 😂`,
+  emotional:  `Oh my heart... ${t}... I'm genuinely feeling so much right now... 🥺`,
+  robot:      `STATEMENT: ${t}. THIS INFORMATION HAS BEEN PROCESSED. PROCEED.`,
+  dadi:       `Beta, ${t}! In our days this never happened, but okay, God bless you! 🙏`,
+});
 
-  // Bengali templates
-  if (targetLang === 'bn') {
-    return {
-      genz: `Yo bhai! "${t}" - No cap fr fr, eta different level! Bestie, periodt! Slay!`,
-      formal: `শ্রদ্ধেয় মহাশয়/মহাশয়া, "${t}" বিষয়টি আপনাকে জানাতে চাই। আশা করি আপনি সুস্থ আছেন।`,
-      funny: `Keu jiggesh kore ni kintu plot twist — "${t}"?! Bro aaj chaos choose korlam! 10/10 welcome 😂`,
-    };
-  }
+const buildTelugu = (t) => ({
+  gen_z:      `Bro, ${t}! Chala lit undi, no cap! 🔥`,
+  formal:     `Meeru gamaninchavalani vinaypoorvakamga teliyajestunna — ${t}.`,
+  funny:      `Arre, ${t}?! Seriously aa? Enti scene idi, navvostundi! 😂`,
+  emotional:  `Yaar... ${t}... manasu nindipoyindi, chala feel avutundi... 🥺`,
+  robot:      `STATEMENT: ${t}. EE SAMACHARAM PROCESS AYYINDI. MUNDUKU VELLU.`,
+  dadi:       `Amma, ${t}! Mana kaalam lo ila undedi kaadu, sare, devudu dayacheyali! 🙏`,
+});
 
-  // Gujarati
-  if (targetLang === 'gu') {
-    return {
-      genz: `Yo yaar! "${t}" - No cap fr fr, aa toh different level chhe! Bestie, periodt! Slay!`,
-      formal: `આદરણીય મહોદય/મહોદયા, "${t}" વિષે આપને જણાવવા ઇચ્છું છું. આશા છે આ સંદેશ આપને સ્વસ્થ પામે.`,
-      funny: `Koi e puchyu nahi pan plot twist — "${t}"?! Bro aaj chaos choose karyo! 10/10 welcome 😂`,
-    };
-  }
+const buildBengali = (t) => ({
+  gen_z:      `Bhai, ${t}! Ekdom lit re, no cap! 🔥`,
+  formal:     `Apnaake binamra bhaabe janano hochhe — ${t}. Onugroho kore dhyan deben.`,
+  funny:      `Arre bhai, ${t}?! Seriously bolcho? Ki scene re, hashte hashte pore gelam! 😂`,
+  emotional:  `Yaar... ${t}... mon bhorhe gelo, sত্যিই onek kichu feel hochhe... 🥺`,
+  robot:      `STATEMENT: ${t}. EI TATHYA PROCESS HOYECHE. EGIYE JAAN.`,
+  dadi:       `Beta, ${t}! Amader samaye ei rokom hoto na, thik ache, bhagwan bhalo koruk! 🙏`,
+});
 
-  // English / default — translate karenge
-  return {
-    genz: `Yo bro! "${t}" - No cap fr fr, this hits different! Like bestie, periodt! Slay!`,
-    formal: `Dear Sir/Ma'am, I would like to formally convey: "${t}". I hope this finds you well. Kindly acknowledge at your earliest convenience.`,
-    funny: `Plot twist nobody asked for: "${t}"?! Bro who gave you permission to say this?! 10/10 chaos, you're welcome lol!`,
-  };
+const LANG_BUILDERS = {
+  hi: buildHindi, ur: buildHindi,
+  ta: buildTamil,
+  te: buildTelugu,
+  bn: buildBengali,
 };
 
 const STYLE_META = {
-  genz:   { emoji: '🔥', label: 'Gen-Z' },
-  formal: { emoji: '👔', label: 'Formal' },
-  funny:  { emoji: '😂', label: 'Funny' },
+  gen_z:     { emoji: '😎', label: 'Gen-Z' },
+  formal:    { emoji: '👔', label: 'Formal' },
+  funny:     { emoji: '😂', label: 'Funny' },
+  emotional: { emoji: '🥺', label: 'Emotional' },
+  robot:     { emoji: '🤖', label: 'Robot' },
+  dadi:      { emoji: '🧓', label: 'Dadi Style' },
 };
 
 // POST /api/style/rephrase
 router.post('/rephrase', async (req, res, next) => {
   try {
     const { text, targetLang } = req.body;
-
     if (!text?.trim()) {
       return res.status(400).json({ success: false, error: 'Text is required' });
     }
 
-    const templates = getStyleTemplates(text.trim(), targetLang);
+    const t = text.trim().replace(/[.!?]+$/, '').trim();
     const results = {};
+    const builder = LANG_BUILDERS[targetLang];
 
-    for (const key of Object.keys(templates)) {
-      let finalText = templates[key];
-
-      // Agar language ke liye direct template nahi hai toh translate karo
-      const hasDirectTemplate = ['hi', 'ur', 'ta', 'te', 'bn', 'gu'].includes(targetLang);
-      if (!hasDirectTemplate && targetLang && targetLang !== 'en') {
-        try {
-          await new Promise((r) => setTimeout(r, 350));
-          const translated = await translateTo(templates[key], targetLang);
-          if (translated) finalText = translated;
-        } catch (e) {}
+    if (builder) {
+      // Direct template — instant, no API call
+      const styles = builder(t);
+      for (const key of Object.keys(styles)) {
+        results[key] = { text: styles[key], ...STYLE_META[key] };
       }
-
-      results[key] = { text: finalText, ...STYLE_META[key] };
+    } else {
+      // Other languages — English template phir translate
+      const englishText = await toEnglish(text.trim());
+      const et = englishText.replace(/[.!?]+$/, '').trim();
+      const englishStyles = buildEnglish(et);
+      for (const key of Object.keys(englishStyles)) {
+        try {
+          await new Promise((r) => setTimeout(r, 300));
+          const translated = await translateTo(englishStyles[key], targetLang);
+          results[key] = { text: translated, ...STYLE_META[key] };
+        } catch (e) {
+          results[key] = { text: englishStyles[key], ...STYLE_META[key] };
+        }
+      }
     }
 
     return res.json({ success: true, styles: results });
