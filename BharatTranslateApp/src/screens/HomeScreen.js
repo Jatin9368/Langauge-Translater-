@@ -33,6 +33,7 @@ const HomeScreen = () => {
   const [emotionLoading, setEmotionLoading] = useState(false);
   const [activeEmotion, setActiveEmotion] = useState(null);
   const [emotionText, setEmotionText] = useState('');
+  const [emotionVoiceText, setEmotionVoiceText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [detectedLang, setDetectedLang] = useState(null);
 
@@ -132,6 +133,7 @@ const HomeScreen = () => {
     try {
       const result = await rephraseEmotion({ text: outputText, emotion, targetLang });
       setEmotionText(result.rephrasedText || '');
+      setEmotionVoiceText(result.voiceText || result.rephrasedText || '');
     } catch (err) {
       setActiveEmotion(null);
       Alert.alert('Emotion Error', err.message || 'Could not rephrase.');
@@ -163,6 +165,7 @@ const HomeScreen = () => {
     setOutputText('');
     setActiveEmotion(null);
     setEmotionText('');
+    setEmotionVoiceText('');
     setDetectedLang(null);
   };
 
@@ -241,12 +244,12 @@ const HomeScreen = () => {
           <View style={styles.inputActions}>
             <Text style={styles.charCount}>{inputText.length}/2000</Text>
             <View style={styles.inputBtns}>
-              {inputText.length > 0 && (
+              {(inputText.length > 0 || outputText.length > 0) && (
                 <TouchableOpacity
                   onPress={handleClearInput}
-                  style={styles.iconBtn}
+                  style={[styles.iconBtn, styles.clearBtn]}
                   accessibilityRole="button"
-                  accessibilityLabel="Clear input"
+                  accessibilityLabel="Clear all"
                 >
                   <Text style={styles.iconBtnText}>✕</Text>
                 </TouchableOpacity>
@@ -298,18 +301,29 @@ const HomeScreen = () => {
 
           {displayOutput ? (
             <View style={styles.outputActions}>
+              {/* Normal voice */}
               <TTSButton
-                text={displayOutput}
+                text={outputText}
                 locale={targetLangObj?.ttsLocale}
-                disabled={!displayOutput}
+                disabled={!outputText}
+                emotion="normal"
               />
+              {/* Emotion voices — sirf tab dikhein jab outputText ho */}
+              {outputText ? (
+                <>
+                  <TTSButton text={emotionVoiceText || emotionText || outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="love" />
+                  <TTSButton text={emotionVoiceText || emotionText || outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="sad" />
+                  <TTSButton text={emotionVoiceText || emotionText || outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="angry" />
+                  <TTSButton text={emotionVoiceText || emotionText || outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="happy" />
+                </>
+              ) : null}
               <TouchableOpacity
                 onPress={handleCopy}
                 style={styles.actionBtn}
                 accessibilityRole="button"
                 accessibilityLabel="Copy translation"
               >
-                <Text style={styles.actionBtnText}>📋 Copy</Text>
+                <Text style={styles.actionBtnText}>📋</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleShare}
@@ -317,7 +331,7 @@ const HomeScreen = () => {
                 accessibilityRole="button"
                 accessibilityLabel="Share translation"
               >
-                <Text style={styles.actionBtnText}>↗ Share</Text>
+                <Text style={styles.actionBtnText}>↗</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -441,6 +455,9 @@ const makeStyles = (theme) =>
     iconBtnActive: {
       backgroundColor: '#FFEBEE',
     },
+    clearBtn: {
+      backgroundColor: '#FFEBEE',
+    },
     iconBtnText: {
       fontSize: 16,
     },
@@ -502,7 +519,8 @@ const makeStyles = (theme) =>
     outputActions: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      flexWrap: 'wrap',
+      gap: 6,
       marginTop: 12,
       paddingTop: 10,
       borderTopWidth: 1,

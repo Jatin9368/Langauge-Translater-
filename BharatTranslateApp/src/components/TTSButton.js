@@ -3,28 +3,106 @@ import { TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
 import Tts from 'react-native-tts';
 import { useTheme } from '../ThemeContext';
 
-const TTSButton = ({ text, locale, disabled }) => {
+// Text ko emotion ke hisaab se modify karo taaki TTS alag lage
+const transformTextForEmotion = (text, emotion) => {
+  if (!text) return text;
+
+  switch (emotion) {
+    case 'angry':
+      // CAPS mein convert karo, har word ke baad pause, aggressive feel
+      return text
+        .toUpperCase()
+        .replace(/[.!?]/g, '! ')
+        .replace(/,/g, '...')
+        .trim() + '!!!';
+
+    case 'sad':
+      // Har sentence ke baad lamba pause, slow feel ke liye commas add karo
+      return text
+        .replace(/([.!?])/g, '$1...')
+        .replace(/(\w{4,})/g, (w) => w.split('').join(''))  // spacing feel
+        .trim();
+
+    case 'love':
+      // Soft pauses, har sentence ke baad warmth
+      return text
+        .replace(/[.!?]/g, '... ')
+        .replace(/,/g, ', ')
+        .trim();
+
+    case 'happy':
+      // Exclamation marks, energetic
+      return text
+        .replace(/[.]/g, '! ')
+        .replace(/[?]/g, '?! ')
+        .trim() + '!';
+
+    default:
+      return text;
+  }
+};
+
+// Emotion ke hisaab se TTS settings
+const EMOTION_SETTINGS = {
+  love: {
+    rate: 0.38,
+    pitch: 1.35,
+    emoji: '❤️',
+    label: 'Love',
+    color: '#FCE4EC',
+    borderColor: '#E91E63',
+  },
+  sad: {
+    rate: 0.28,
+    pitch: 0.72,
+    emoji: '😢',
+    label: 'Sad',
+    color: '#E8EAF6',
+    borderColor: '#5C6BC0',
+  },
+  angry: {
+    rate: 0.72,
+    pitch: 0.6,
+    emoji: '😡',
+    label: 'Angry',
+    color: '#FFEBEE',
+    borderColor: '#F44336',
+  },
+  happy: {
+    rate: 0.68,
+    pitch: 1.5,
+    emoji: '😄',
+    label: 'Happy',
+    color: '#FFFDE7',
+    borderColor: '#FFC107',
+  },
+  normal: {
+    rate: 0.5,
+    pitch: 1.0,
+    emoji: '🔊',
+    label: '',
+    color: null,
+    borderColor: null,
+  },
+};
+
+const TTSButton = ({ text, locale, disabled, emotion = 'normal' }) => {
   const { theme } = useTheme();
   const [speaking, setSpeaking] = useState(false);
   const styles = makeStyles(theme);
+  const settings = EMOTION_SETTINGS[emotion] || EMOTION_SETTINGS.normal;
 
   useEffect(() => {
-    // Set up TTS event listeners
-    const startListener = Tts.addEventListener('tts-start', () => setSpeaking(true));
-    const finishListener = Tts.addEventListener('tts-finish', () => setSpeaking(false));
-    const cancelListener = Tts.addEventListener('tts-cancel', () => setSpeaking(false));
-    const errorListener = Tts.addEventListener('tts-error', (err) => {
-      setSpeaking(false);
-      console.error('TTS error:', err);
-    });
-
-    return () => {
-      startListener.remove();
-      finishListener.remove();
-      cancelListener.remove();
-      errorListener.remove();
-    };
+    const s = Tts.addEventListener('tts-start', () => setSpeaking(true));
+    const f = Tts.addEventListener('tts-finish', () => setSpeaking(false));
+    const c = Tts.addEventListener('tts-cancel', () => setSpeaking(false));
+    const e = Tts.addEventListener('tts-error', () => setSpeaking(false));
+    return () => { s.remove(); f.remove(); c.remove(); e.remove(); };
   }, []);
+
+  useEffect(() => {
+    if (speaking) { Tts.stop(); setSpeaking(false); }
+  }, [emotion, text]);
 
   const handlePress = async () => {
     try {
@@ -33,36 +111,53 @@ const TTSButton = ({ text, locale, disabled }) => {
         setSpeaking(false);
         return;
       }
-
-      if (!text || !text.trim()) {
-        Alert.alert('Nothing to speak', 'Translate some text first.');
+      if (!text?.trim()) {
+        Alert.alert('Kuch nahi hai', 'Pehle translate karein.');
         return;
       }
 
-      if (locale) {
-        await Tts.setDefaultLanguage(locale);
-      }
+      // Text ko emotion ke hisaab se transform karo
+      const transformedText = transformTextForEmotion(text.trim(), emotion);
 
-      await Tts.setDefaultRate(0.5);
-      await Tts.setDefaultPitch(1.0);
-      Tts.speak(text.trim());
+      if (locale) await Tts.setDefaultLanguage(locale);
+      await Tts.setDefaultRate(settings.rate);
+      await Tts.setDefaultPitch(settings.pitch);
+
+      Tts.speak(transformedText);
     } catch (err) {
       setSpeaking(false);
-      Alert.alert('TTS Error', err.message || 'Could not play audio.');
+      Alert.alert('TTS Error', err.message || 'Audio play nahi ho saka.');
     }
   };
 
+  const bgColor = speaking
+    ? theme.colors.primaryLight
+    : settings.color || theme.colors.surfaceVariant;
+
+  const borderColor = speaking
+    ? theme.colors.primary
+    : settings.borderColor || theme.colors.border;
+
   return (
     <TouchableOpacity
-      style={[styles.btn, disabled && styles.btnDisabled, speaking && styles.btnActive]}
+      style={[
+        styles.btn,
+        { backgroundColor: bgColor, borderColor },
+        disabled && styles.btnDisabled,
+      ]}
       onPress={handlePress}
       disabled={disabled}
       accessibilityRole="button"
-      accessibilityLabel={speaking ? 'Stop speaking' : 'Listen to translation'}
+      accessibilityLabel={`${settings.label || 'Normal'} tone mein suno`}
     >
-      <Text style={[styles.icon, speaking && styles.iconActive]}>
-        {speaking ? '⏹' : '🔊'}
+      <Text style={styles.emoji}>
+        {speaking ? '⏹' : settings.emoji}
       </Text>
+      {settings.label ? (
+        <Text style={[styles.label, { color: borderColor }]}>
+          {speaking ? 'Stop' : settings.label}
+        </Text>
+      ) : null}
     </TouchableOpacity>
   );
 };
@@ -70,24 +165,24 @@ const TTSButton = ({ text, locale, disabled }) => {
 const makeStyles = (theme) =>
   StyleSheet.create({
     btn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: theme.colors.surfaceVariant,
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
-    },
-    btnActive: {
-      backgroundColor: theme.colors.primaryLight,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      borderRadius: 10,
+      borderWidth: 1.5,
+      gap: 4,
     },
     btnDisabled: {
-      opacity: 0.4,
+      opacity: 0.35,
     },
-    icon: {
-      fontSize: 18,
+    emoji: {
+      fontSize: 17,
     },
-    iconActive: {
-      fontSize: 18,
+    label: {
+      fontSize: 11,
+      fontWeight: '700',
+      textTransform: 'capitalize',
     },
   });
 
