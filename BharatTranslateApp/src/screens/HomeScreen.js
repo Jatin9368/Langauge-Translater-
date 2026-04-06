@@ -123,26 +123,11 @@ const HomeScreen = () => {
   // ─── Emotion rephrasing ───────────────────────────────────────────────────────
   const handleEmotion = async (emotion) => {
     if (!outputText.trim()) {
-      Alert.alert('No translation', 'Pehle translate karein.');
+      Alert.alert('Pehle translate karein', 'Koi translation nahi hai.');
       return;
     }
-    if (activeEmotion === emotion) {
-      setActiveEmotion(null);
-      setEmotionText('');
-      return;
-    }
-    setEmotionLoading(true);
-    setActiveEmotion(emotion);
-    try {
-      const result = await rephraseEmotion({ text: outputText, emotion, targetLang });
-      setEmotionText(result.rephrasedText || '');
-      setEmotionVoiceText(result.voiceText || result.rephrasedText || '');
-    } catch (err) {
-      setActiveEmotion(null);
-      Alert.alert('Emotion Error', err.message || 'Could not rephrase.');
-    } finally {
-      setEmotionLoading(false);
-    }
+    // Sirf voice mein bolo — koi text change nahi
+    setActiveEmotion(emotion === activeEmotion ? null : emotion);
   };
 
   // ─── Copy & Share ─────────────────────────────────────────────────────────────
@@ -311,15 +296,6 @@ const HomeScreen = () => {
                 disabled={!outputText}
                 emotion="normal"
               />
-              {/* Emotion voices — sirf bolte hain, output box mein nahi dikhate */}
-              {outputText ? (
-                <>
-                  <TTSButton text={outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="love" />
-                  <TTSButton text={outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="sad" />
-                  <TTSButton text={outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="angry" />
-                  <TTSButton text={outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="happy" />
-                </>
-              ) : null}
               <TouchableOpacity
                 onPress={handleCopy}
                 style={styles.actionBtn}
@@ -340,13 +316,16 @@ const HomeScreen = () => {
           ) : null}
         </View>
 
-        {/* Emotion Selector */}
-        <EmotionSelector
-          onSelect={handleEmotion}
-          activeEmotion={activeEmotion}
-          loading={emotionLoading}
-          disabled={!outputText.trim() || translating}
-        />
+        {/* Emotion buttons — sirf tab dikhein jab translation ho */}
+        {outputText ? (
+          <View style={styles.emotionRow}>
+            <EmotionSelector
+              text={outputText}
+              locale={targetLangObj?.ttsLocale}
+              disabled={translating}
+            />
+          </View>
+        ) : null}
 
         {/* Style Selector */}
         <StyleSelector
@@ -510,6 +489,10 @@ const makeStyles = (theme) =>
     },
     outputPlaceholder: {
       color: theme.colors.textPlaceholder,
+    },
+    emotionRow: {
+      marginTop: 2,
+      marginBottom: 2,
     },
     emotionBadge: {
       alignSelf: 'flex-start',
