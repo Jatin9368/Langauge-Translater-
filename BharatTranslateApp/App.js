@@ -65,7 +65,7 @@ const AppNavigator = () => {
         <Tab.Screen
           name="Camera"
           component={CameraScreen}
-          options={{ tabBarLabel: 'Camera' }}
+          options={{ tabBarLabel: 'Bharat Lens' }}
         />
         <Tab.Screen
           name="History"

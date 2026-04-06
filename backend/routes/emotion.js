@@ -2,52 +2,54 @@ const express = require('express');
 const { translate } = require('@vitalets/google-translate-api');
 const router = express.Router();
 
-// Emotion ke hisaab se text ko rewrite karne ke liye prefix/suffix add karte hain
-// Phir translate karke wapas original language mein laate hain
-const EMOTION_PROMPTS = {
-  love: {
-    prefix: 'With deep love and affection, say this romantically: ',
-    emoji: '❤️',
-    style: 'romantic and loving',
-  },
-  sad: {
-    prefix: 'Say this in a very sad, emotional and heartbroken way: ',
-    emoji: '😢',
-    style: 'sad and emotional',
-  },
-  angry: {
-    prefix: 'Say this in a very angry, frustrated and intense way: ',
-    emoji: '😡',
-    style: 'angry and intense',
-  },
-  happy: {
-    prefix: 'Say this in a very happy, joyful and excited way: ',
-    emoji: '😄',
-    style: 'happy and joyful',
-  },
+// Emotion ke hisaab se English mein rewrite templates
+const rewriteInEnglish = (text, emotion) => {
+  switch (emotion) {
+    case 'love':
+      return `My dearest, I want you to know with all my heart... ${text} You mean absolutely everything to me, and I cherish every moment with you. I love you so deeply.`;
+
+    case 'sad':
+      return `I am so heartbroken right now... ${text} I feel so lost, so empty inside. My tears just won't stop. I don't know how to go on like this.`;
+
+    case 'angry':
+      return `I am absolutely furious and I cannot stay quiet anymore! ${text} This is completely unacceptable! How dare you! I am so done with this nonsense!`;
+
+    case 'happy':
+      return `Oh wow, I am so incredibly happy right now! ${text} This is absolutely amazing! I feel like I am on top of the world! Yay!`;
+
+    default:
+      return text;
+  }
 };
 
-const EMOTION_REWRITES = {
-  love: [
-    (t) => `💕 ${t} 💕`,
-    (t) => `Dil se keh raha hoon... ${t} ❤️`,
-    (t) => `Pyaar se: ${t} 🌹`,
-  ],
-  sad: [
-    (t) => `😢 ${t}... (dil toot gaya)`,
-    (t) => `Aankhon mein aansu hain... ${t} 💔`,
-    (t) => `Udaas mann se: ${t} 😔`,
-  ],
-  angry: [
-    (t) => `😡 ${t}!! (gussa aa raha hai)`,
-    (t) => `Krodh mein: ${t} 🔥`,
-    (t) => `Bilkul bhi theek nahi! ${t} 😤`,
-  ],
-  happy: [
-    (t) => `🎉 ${t} 🎊`,
-    (t) => `Khushi se: ${t} ✨😄`,
-    (t) => `Waah! ${t} 🥳`,
-  ],
+// TTS ke liye voice style instructions (text mein embed)
+const addVoiceStyle = (text, emotion) => {
+  switch (emotion) {
+    case 'angry':
+      // Short punchy sentences, caps for emphasis
+      return text
+        .replace(/([.!?])\s+/g, '$1\n')
+        .toUpperCase();
+
+    case 'sad':
+      // Add pauses with ellipsis
+      return text
+        .replace(/,/g, '...')
+        .replace(/\./g, '...\n')
+        .replace(/!/g, '...');
+
+    case 'love':
+      // Soft pauses
+      return text
+        .replace(/,/g, '...')
+        .replace(/\./g, '.\n');
+
+    case 'happy':
+      return text;
+
+    default:
+      return text;
+  }
 };
 
 // POST /api/emotion/rephrase
@@ -55,55 +57,42 @@ router.post('/rephrase', async (req, res, next) => {
   try {
     const { text, emotion, targetLang } = req.body;
 
-    if (!text || !text.trim()) {
+    if (!text?.trim()) {
       return res.status(400).json({ success: false, error: 'Text is required' });
     }
 
     const emotionKey = emotion?.toLowerCase();
-    if (!EMOTION_PROMPTS[emotionKey]) {
-      return res.status(400).json({ success: false, error: 'Invalid emotion. Use: love, sad, angry, happy' });
+    const validEmotions = ['love', 'sad', 'angry', 'happy'];
+    if (!validEmotions.includes(emotionKey)) {
+      return res.status(400).json({ success: false, error: 'Invalid emotion' });
     }
 
-    const emotionData = EMOTION_PROMPTS[emotionKey];
-    const rewrites = EMOTION_REWRITES[emotionKey];
+    // Step 1: English mein emotional rewrite
+    const englishRewrite = rewriteInEnglish(text, emotionKey);
 
-    // Step 1: Pehle text ko English mein translate karo (processing ke liye)
-    let englishText = text;
-    try {
-      const toEn = await translate(text.trim(), { to: 'en' });
-      englishText = toEn.text;
-    } catch (e) {
-      englishText = text;
-    }
-
-    // Step 2: Emotion ke hisaab se English mein rewrite karo
-    const emotionEnglishMap = {
-      love: `I love you so much! ${englishText} You mean everything to me, my heart beats for you! 💕`,
-      sad: `I'm heartbroken... ${englishText} My tears won't stop, I feel so lost and empty. 💔`,
-      angry: `I'm absolutely furious! ${englishText} This is completely unacceptable and I'm so done! 😡🔥`,
-      happy: `Oh my goodness, I'm so thrilled! ${englishText} This is the best thing ever, I'm over the moon! 🎉✨`,
-    };
-
-    const rephrasedEnglish = emotionEnglishMap[emotionKey];
-
-    // Step 3: Wapas original target language mein translate karo
-    let rephrasedText = rephrasedEnglish;
+    // Step 2: Target language mein translate karo
+    let rephrasedText = englishRewrite;
     if (targetLang && targetLang !== 'en') {
       try {
-        const backTranslate = await translate(rephrasedEnglish, { to: targetLang });
-        rephrasedText = backTranslate.text;
+        const result = await translate(englishRewrite, { to: targetLang });
+        rephrasedText = result.text;
       } catch (e) {
-        // Fallback: simple emoji wrap
-        const randomRewrite = rewrites[Math.floor(Math.random() * rewrites.length)];
-        rephrasedText = randomRewrite(text);
+        console.error('Emotion translate error:', e.message);
+        rephrasedText = englishRewrite;
       }
     }
 
+    // Step 3: Voice ke liye style add karo
+    const voiceText = addVoiceStyle(rephrasedText, emotionKey);
+
+    const emojis = { love: '❤️', sad: '😢', angry: '😡', happy: '😄' };
+
     return res.json({
       success: true,
-      rephrasedText,
+      rephrasedText,      // display ke liye clean text
+      voiceText,          // TTS ke liye styled text
       emotion: emotionKey,
-      emoji: emotionData.emoji,
+      emoji: emojis[emotionKey],
     });
   } catch (err) {
     console.error('Emotion error:', err.message);

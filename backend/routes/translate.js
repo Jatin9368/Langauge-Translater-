@@ -20,7 +20,7 @@ const translateWithPravahai = async (text, sourceLang, targetLang) => {
   const payload = [{ text, from: sourceLang === 'auto' ? 'en' : sourceLang, to: targetLang }];
   const response = await axios.post(PRAVAHAI_URL, payload, {
     headers: { 'Content-Type': 'application/json' },
-    timeout: 12000,
+    timeout: 6000, // 6 sec max — agar slow hai toh Google pe jaao
     responseEncoding: 'utf8',
   });
   const data = response.data;
@@ -34,7 +34,7 @@ const translateWithPravahai = async (text, sourceLang, targetLang) => {
 
 // Google Translate fallback
 const translateWithGoogle = async (text, sourceLang, targetLang) => {
-  const options = { to: targetLang };
+  const options = { to: targetLang, fetchOptions: { signal: AbortSignal.timeout(8000) } };
   if (sourceLang && sourceLang !== 'auto') options.from = sourceLang;
   const result = await translate(text, options);
   return result.text;
@@ -68,20 +68,16 @@ router.post('/', async (req, res, next) => {
 
     const detectedLang = sourceLang || 'auto';
 
-    // Save to history
+    // History background mein save karo — response wait nahi
     if (saveHistory !== false) {
-      try {
-        await History.create({
-          sourceText: text.trim(),
-          translatedText,
-          sourceLang: detectedLang,
-          targetLang,
-          sourceLangName: sourceLangName || detectedLang,
-          targetLangName: targetLangName || targetLang,
-        });
-      } catch (histErr) {
-        console.error('History save error:', histErr.message);
-      }
+      History.create({
+        sourceText: text.trim(),
+        translatedText,
+        sourceLang: detectedLang,
+        targetLang,
+        sourceLangName: sourceLangName || detectedLang,
+        targetLangName: targetLangName || targetLang,
+      }).catch((e) => console.error('History save error:', e.message));
     }
 
     return res.json({ success: true, translatedText, detectedLang, engine: usedEngine });

@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const translateRoutes = require('./routes/translate');
 const emotionRoutes = require('./routes/emotion');
 const historyRoutes = require('./routes/history');
+const styleRoutes = require('./routes/style');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -25,6 +26,7 @@ mongoose
 app.use('/api/translate', translateRoutes);
 app.use('/api/emotion', emotionRoutes);
 app.use('/api/history', historyRoutes);
+app.use('/api/style', styleRoutes);
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
