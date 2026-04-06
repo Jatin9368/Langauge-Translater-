@@ -42,35 +42,34 @@ const transformTextForEmotion = (text, emotion) => {
   }
 };
 
-// Emotion ke hisaab se TTS settings
 const EMOTION_SETTINGS = {
   love: {
-    rate: 0.38,
-    pitch: 1.35,
+    rate: 0.35,   // slow aur soft
+    pitch: 1.2,   // thoda high — warm
     emoji: '❤️',
     label: 'Love',
     color: '#FCE4EC',
     borderColor: '#E91E63',
   },
   sad: {
-    rate: 0.28,
-    pitch: 0.72,
+    rate: 0.28,   // bahut slow — rona wala
+    pitch: 0.75,  // low — dukhi
     emoji: '😢',
     label: 'Sad',
     color: '#E8EAF6',
     borderColor: '#5C6BC0',
   },
   angry: {
-    rate: 0.72,
-    pitch: 0.6,
+    rate: 0.45,   // medium — clearly gusse se bole, fast nahi
+    pitch: 0.65,  // deep/low — aggressive
     emoji: '😡',
     label: 'Angry',
     color: '#FFEBEE',
     borderColor: '#F44336',
   },
   happy: {
-    rate: 0.68,
-    pitch: 1.5,
+    rate: 0.55,   // thoda fast — excited
+    pitch: 1.4,   // high — khushi
     emoji: '😄',
     label: 'Happy',
     color: '#FFFDE7',
@@ -116,13 +115,14 @@ const TTSButton = ({ text, locale, disabled, emotion = 'normal' }) => {
         return;
       }
 
-      // Text ko emotion ke hisaab se transform karo
+      // Sirf voice ke liye transform — screen pe kuch nahi dikhata
       const transformedText = transformTextForEmotion(text.trim(), emotion);
 
       if (locale) await Tts.setDefaultLanguage(locale);
       await Tts.setDefaultRate(settings.rate);
       await Tts.setDefaultPitch(settings.pitch);
 
+      // transformedText sirf bolta hai, koi state update nahi
       Tts.speak(transformedText);
     } catch (err) {
       setSpeaking(false);

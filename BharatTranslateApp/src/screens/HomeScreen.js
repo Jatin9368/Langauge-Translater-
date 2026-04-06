@@ -308,13 +308,13 @@ const HomeScreen = () => {
                 disabled={!outputText}
                 emotion="normal"
               />
-              {/* Emotion voices — sirf tab dikhein jab outputText ho */}
+              {/* Emotion voices — sirf bolte hain, output box mein nahi dikhate */}
               {outputText ? (
                 <>
-                  <TTSButton text={emotionVoiceText || emotionText || outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="love" />
-                  <TTSButton text={emotionVoiceText || emotionText || outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="sad" />
-                  <TTSButton text={emotionVoiceText || emotionText || outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="angry" />
-                  <TTSButton text={emotionVoiceText || emotionText || outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="happy" />
+                  <TTSButton text={outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="love" />
+                  <TTSButton text={outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="sad" />
+                  <TTSButton text={outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="angry" />
+                  <TTSButton text={outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="happy" />
                 </>
               ) : null}
               <TouchableOpacity
