@@ -1,0 +1,30 @@
+# Environment files - NEVER push these
+backend/.env
+
+# Node modules
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+frontend_backup/
+BharatTranslateApp/node_modules/
+
+# Android build
+BharatTranslateApp/android/.gradle/
+BharatTranslateApp/android/app/build/
+BharatTranslateApp/android/build/
+BharatTranslateApp/android/local.properties
+
+# iOS
+BharatTranslateApp/ios/Pods/
+BharatTranslateApp/ios/build/
+
+# Metro
+BharatTranslateApp/.metro-health-check*
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
