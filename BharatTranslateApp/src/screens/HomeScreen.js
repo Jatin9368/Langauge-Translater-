@@ -322,6 +322,7 @@ const HomeScreen = () => {
             <EmotionSelector
               text={outputText}
               locale={targetLangObj?.ttsLocale}
+              targetLang={targetLang}
               disabled={translating}
             />
           </View>

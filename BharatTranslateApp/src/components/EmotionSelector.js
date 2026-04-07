@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import Tts from 'react-native-tts';
 import { useTheme } from '../ThemeContext';
+import { rephraseEmotion } from '../api';
 
 const EMOTIONS = [
   { key: 'love',  label: 'Love',  emoji: '❤️', color: '#E91E63', rate: 0.38, pitch: 1.3 },
@@ -10,27 +11,11 @@ const EMOTIONS = [
   { key: 'happy', label: 'Happy', emoji: '😄', color: '#FFC107', rate: 0.6,  pitch: 1.4 },
 ];
 
-// Emotion ke hisaab se text transform — sirf voice ke liye
-const transformForVoice = (text, emotion) => {
-  const t = text.trim();
-  switch (emotion) {
-    case 'angry':
-      return t.toUpperCase().replace(/[.!?]/g, '! ').trim() + '!!!';
-    case 'sad':
-      return t.replace(/([.!?])/g, '$1...').trim();
-    case 'love':
-      return t.replace(/[.!?]/g, '... ').trim();
-    case 'happy':
-      return t.replace(/[.]/g, '! ').trim() + '!';
-    default:
-      return t;
-  }
-};
-
-const EmotionSelector = ({ text, locale, disabled }) => {
+const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
   const { theme } = useTheme();
   const styles = makeStyles(theme);
   const [speakingEmotion, setSpeakingEmotion] = useState(null);
+  const [loadingEmotion, setLoadingEmotion] = useState(null);
 
   useEffect(() => {
     const f = Tts.addEventListener('tts-finish', () => setSpeakingEmotion(null));
@@ -45,28 +30,42 @@ const EmotionSelector = ({ text, locale, disabled }) => {
       return;
     }
 
-    // Agar same emotion chal raha hai toh stop karo
+    // Stop if already speaking this emotion
     if (speakingEmotion === emotion.key) {
       await Tts.stop();
       setSpeakingEmotion(null);
       return;
     }
 
-    // Pehle se kuch chal raha hai toh stop karo
+    // Stop any current speech
     if (speakingEmotion) {
       await Tts.stop();
+      setSpeakingEmotion(null);
     }
 
+    setLoadingEmotion(emotion.key);
+
     try {
-      const voiceText = transformForVoice(text, emotion.key);
+      // Backend se emotion mein rewritten text lo
+      const result = await rephraseEmotion({
+        text: text.trim(),
+        emotion: emotion.key,
+        targetLang: targetLang || 'en',
+      });
+
+      const voiceText = result.voiceText || text.trim();
+
+      // TTS settings
       if (locale) await Tts.setDefaultLanguage(locale);
       await Tts.setDefaultRate(emotion.rate);
       await Tts.setDefaultPitch(emotion.pitch);
+
       setSpeakingEmotion(emotion.key);
       Tts.speak(voiceText);
     } catch (err) {
-      setSpeakingEmotion(null);
-      Alert.alert('Voice Error', err.message || 'Awaaz nahi aa saki.');
+      Alert.alert('Error', err.message || 'Voice nahi aa saki.');
+    } finally {
+      setLoadingEmotion(null);
     }
   };
 
@@ -74,6 +73,8 @@ const EmotionSelector = ({ text, locale, disabled }) => {
     <View style={styles.row}>
       {EMOTIONS.map((emotion) => {
         const isSpeaking = speakingEmotion === emotion.key;
+        const isLoading = loadingEmotion === emotion.key;
+
         return (
           <TouchableOpacity
             key={emotion.key}
@@ -84,13 +85,17 @@ const EmotionSelector = ({ text, locale, disabled }) => {
               disabled && styles.btnDisabled,
             ]}
             onPress={() => handlePress(emotion)}
-            disabled={disabled}
+            disabled={disabled || isLoading}
             accessibilityRole="button"
             accessibilityLabel={`${emotion.label} tone mein suno`}
           >
-            <Text style={styles.emoji}>{isSpeaking ? '⏹' : emotion.emoji}</Text>
+            {isLoading ? (
+              <ActivityIndicator size="small" color={emotion.color} />
+            ) : (
+              <Text style={styles.emoji}>{isSpeaking ? '⏹' : emotion.emoji}</Text>
+            )}
             <Text style={[styles.label, { color: isSpeaking ? '#fff' : emotion.color }]}>
-              {isSpeaking ? 'Stop' : emotion.label}
+              {isLoading ? '...' : isSpeaking ? 'Stop' : emotion.label}
             </Text>
           </TouchableOpacity>
         );
@@ -116,16 +121,9 @@ const makeStyles = (theme) =>
       backgroundColor: theme.colors.surface,
       gap: 3,
     },
-    btnDisabled: {
-      opacity: 0.4,
-    },
-    emoji: {
-      fontSize: 20,
-    },
-    label: {
-      fontSize: 11,
-      fontWeight: '700',
-    },
+    btnDisabled: { opacity: 0.4 },
+    emoji: { fontSize: 20 },
+    label: { fontSize: 11, fontWeight: '700' },
   });
 
 export default EmotionSelector;

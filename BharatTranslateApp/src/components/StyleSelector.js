@@ -14,12 +14,9 @@ import { useTheme } from '../ThemeContext';
 import { rephraseStyle } from '../api';
 
 const STYLES = [
-  { key: 'gen_z',     emoji: '😎', label: 'Gen-Z',     color: '#6A1B9A', bg: '#F3E5F5' },
-  { key: 'formal',    emoji: '👔', label: 'Formal',     color: '#2E7D32', bg: '#E8F5E9' },
-  { key: 'funny',     emoji: '😂', label: 'Funny',      color: '#E65100', bg: '#FFF8E1' },
-  { key: 'emotional', emoji: '🥺', label: 'Emotional',  color: '#C62828', bg: '#FFEBEE' },
-  { key: 'robot',     emoji: '🤖', label: 'Robot',      color: '#37474F', bg: '#ECEFF1' },
-  { key: 'dadi',      emoji: '🧓', label: 'Dadi Style', color: '#4E342E', bg: '#EFEBE9' },
+  { key: 'gen_z',  emoji: '😎', label: 'Gen-Z',  color: '#6A1B9A', bg: '#F3E5F5' },
+  { key: 'formal', emoji: '👔', label: 'Formal',  color: '#2E7D32', bg: '#E8F5E9' },
+  { key: 'funny',  emoji: '😂', label: 'Funny',   color: '#E65100', bg: '#FFF8E1' },
 ];
 
 const StyleSelector = ({ outputText, targetLang }) => {

@@ -1,26 +1,9 @@
 const express = require('express');
-const axios = require('axios');
 const { translate } = require('@vitalets/google-translate-api');
 const router = express.Router();
 
-const PRAVAHAI_URL = 'https://pravahai.aicte-india.org/api/translatebulk';
-
-const isValidText = (text) => {
-  if (!text) return false;
-  const badChars = (text.match(/[^\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFD]/g) || []).length;
-  return badChars / text.length < 0.1;
-};
-
 const translateTo = async (text, targetLang) => {
   if (!targetLang || targetLang === 'en') return text;
-  try {
-    const res = await axios.post(PRAVAHAI_URL,
-      [{ text, from: 'en', to: targetLang }],
-      { headers: { 'Content-Type': 'application/json' }, timeout: 8000 }
-    );
-    const t = res.data?.value?.[0]?.translations?.[0]?.text;
-    if (t && isValidText(t)) return t;
-  } catch (e) {}
   try {
     const res = await translate(text, { to: targetLang });
     return res.text;

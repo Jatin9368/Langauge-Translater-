@@ -220,7 +220,6 @@ BharatTranslate/
 │   └── package.json
 └── README.md
 ```
-
 ---
 
 ## API Endpoints
