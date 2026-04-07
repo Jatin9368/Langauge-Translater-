@@ -1,404 +1,294 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Dimensions,
-  Alert,
+  View, Text, TouchableOpacity, StyleSheet,
+  Alert, ScrollView, ActivityIndicator, Share, Clipboard, Image,
 } from 'react-native';
-import {
-  Camera,
-  useCameraDevice,
-  useCameraPermission,
-} from 'react-native-vision-camera';
+import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import TextRecognition from '@react-native-ml-kit/text-recognition';
 import { useTheme } from '../ThemeContext';
 import LanguagePicker from '../components/LanguagePicker';
+import TTSButton from '../components/TTSButton';
 import { translateText } from '../api';
 import { TARGET_LANGUAGES, getLanguageByCode } from '../languages';
-
-const { width: W, height: H } = Dimensions.get('window');
-const SCAN_INTERVAL = 2000;
 
 const CameraScreen = () => {
   const { theme } = useTheme();
   const styles = makeStyles(theme);
 
-  const { hasPermission, requestPermission } = useCameraPermission();
-  const device = useCameraDevice('back');
-  const cameraRef = useRef(null);
-
   const [targetLang, setTargetLang] = useState('hi');
-  const [isScanning, setIsScanning] = useState(false);
+  const [capturedUri, setCapturedUri] = useState(null);
   const [detectedText, setDetectedText] = useState('');
   const [translatedText, setTranslatedText] = useState('');
-  const [isTranslating, setIsTranslating] = useState(false);
-  const [lensOn, setLensOn] = useState(false);
-  const [showPicker, setShowPicker] = useState(false);
-
-  const scanTimer = useRef(null);
-  const isBusy = useRef(false);
-  const lastText = useRef('');
+  const [processing, setProcessing] = useState(false);
+  const [step, setStep] = useState(''); // 'scanning' | 'translating'
 
   const targetLangObj = getLanguageByCode(targetLang);
 
-  // Auto request permission
-  useEffect(() => {
-    if (!hasPermission) requestPermission();
-  }, []);
-
-  // Start/stop scan loop
-  useEffect(() => {
-    if (lensOn && hasPermission && device) {
-      startLoop();
-    } else {
-      stopLoop();
-    }
-    return () => stopLoop();
-  }, [lensOn, hasPermission, device, targetLang]);
-
-  const startLoop = () => {
-    stopLoop();
-    scanTimer.current = setInterval(doScan, SCAN_INTERVAL);
-  };
-
-  const stopLoop = () => {
-    if (scanTimer.current) {
-      clearInterval(scanTimer.current);
-      scanTimer.current = null;
-    }
-  };
-
-  const doScan = useCallback(async () => {
-    if (isBusy.current || !cameraRef.current) return;
-    isBusy.current = true;
-    setIsScanning(true);
+  const processImage = async (uri) => {
+    setProcessing(true);
+    setStep('scanning');
+    setDetectedText('');
+    setTranslatedText('');
+    setCapturedUri(uri);
 
     try {
-      const photo = await cameraRef.current.takePhoto({
-        qualityPrioritization: 'speed',
-        flash: 'off',
-      });
+      const result = await TextRecognition.recognize(uri);
+      const extracted = result.text?.trim() || '';
 
-      const result = await TextRecognition.recognize(`file://${photo.path}`);
-      const text = result.text?.trim() || '';
-
-      if (!text || text === lastText.current) {
-        setIsScanning(false);
-        isBusy.current = false;
+      if (!extracted) {
+        Alert.alert('Text Nahi Mila', 'Image mein koi text detect nahi hua. Doosri image try karo.');
+        setProcessing(false);
+        setCapturedUri(null);
         return;
       }
 
-      lastText.current = text;
-      setDetectedText(text);
-      setIsTranslating(true);
+      setDetectedText(extracted);
+      setStep('translating');
 
       const res = await translateText({
-        text,
+        text: extracted,
         sourceLang: 'auto',
         targetLang,
-        saveHistory: false,
+        targetLangName: targetLangObj?.name || targetLang,
+        saveHistory: true,
       });
 
       setTranslatedText(res.translatedText || '');
-    } catch (e) {
-      // Silent fail — keep scanning
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Image process nahi ho saki.');
     } finally {
-      setIsScanning(false);
-      setIsTranslating(false);
-      isBusy.current = false;
+      setProcessing(false);
+      setStep('');
     }
-  }, [targetLang]);
+  };
 
-  // ─── Permission screen ────────────────────────────────────────────────────────
-  if (!hasPermission) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.bigIcon}>📷</Text>
-        <Text style={styles.permTitle}>Camera Permission Chahiye</Text>
-        <Text style={styles.permDesc}>
-          Real-time text translation ke liye camera access do.
-        </Text>
-        <TouchableOpacity style={styles.permBtn} onPress={requestPermission}>
-          <Text style={styles.permBtnText}>Allow Camera</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  const handleCamera = () => {
+    launchCamera({ mediaType: 'photo', quality: 0.9, saveToPhotos: false }, (response) => {
+      if (response.didCancel || response.errorCode) return;
+      const uri = response.assets?.[0]?.uri;
+      if (uri) processImage(uri);
+    });
+  };
 
-  // ─── No device ────────────────────────────────────────────────────────────────
-  if (!device) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.bigIcon}>📷</Text>
-        <Text style={styles.permTitle}>Camera nahi mila</Text>
-        <Text style={styles.permDesc}>Phone restart karke try karo.</Text>
-      </View>
-    );
-  }
+  const handleGallery = () => {
+    launchImageLibrary({ mediaType: 'photo', quality: 0.9 }, (response) => {
+      if (response.didCancel || response.errorCode) return;
+      const uri = response.assets?.[0]?.uri;
+      if (uri) processImage(uri);
+    });
+  };
 
-  // ─── Live Camera View ─────────────────────────────────────────────────────────
-  if (lensOn) {
-    return (
-      <View style={styles.lensRoot}>
-        <Camera
-          ref={cameraRef}
-          style={StyleSheet.absoluteFill}
-          device={device}
-          isActive
-          photo
-        />
+  const handleReset = () => {
+    setCapturedUri(null);
+    setDetectedText('');
+    setTranslatedText('');
+  };
 
-        {/* Top bar */}
-        <View style={styles.topBar}>
-          <TouchableOpacity
-            style={styles.closeBtn}
-            onPress={() => {
-              setLensOn(false);
-              stopLoop();
-              setDetectedText('');
-              setTranslatedText('');
-              lastText.current = '';
-            }}
-          >
-            <Text style={styles.closeBtnText}>✕</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.langBadge}
-            onPress={() => setShowPicker(true)}
-          >
-            <Text style={styles.langBadgeText}>
-              {targetLangObj?.flag} {targetLangObj?.name} ▾
-            </Text>
-          </TouchableOpacity>
-
-          <View style={styles.statusDot}>
-            {isScanning || isTranslating ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <View style={styles.activeDot} />
-            )}
-          </View>
-        </View>
-
-        {/* Scan frame corners */}
-        <View style={styles.frameContainer} pointerEvents="none">
-          <View style={styles.frame}>
-            <View style={[styles.corner, styles.cTL]} />
-            <View style={[styles.corner, styles.cTR]} />
-            <View style={[styles.corner, styles.cBL]} />
-            <View style={[styles.corner, styles.cBR]} />
-          </View>
-          <Text style={styles.frameHint}>
-            {isScanning ? '🔍 Scanning...' : isTranslating ? '⚡ Translating...' : 'Text ke upar camera rakho'}
-          </Text>
-        </View>
-
-        {/* Translation overlay */}
-        {(detectedText || translatedText) && (
-          <View style={styles.overlay}>
-            {detectedText ? (
-              <Text style={styles.overlayOriginal} numberOfLines={2}>
-                📝 {detectedText}
-              </Text>
-            ) : null}
-            {isTranslating ? (
-              <View style={styles.overlayLoading}>
-                <ActivityIndicator size="small" color="#fff" />
-                <Text style={styles.overlayLoadingText}>Translating...</Text>
-              </View>
-            ) : translatedText ? (
-              <Text style={styles.overlayTranslated} numberOfLines={4}>
-                {targetLangObj?.flag} {translatedText}
-              </Text>
-            ) : null}
-          </View>
-        )}
-
-        {/* Language picker modal */}
-        {showPicker && (
-          <View style={styles.pickerOverlay}>
-            <View style={styles.pickerSheet}>
-              <View style={styles.pickerHeader}>
-                <Text style={styles.pickerTitle}>Language Select Karo</Text>
-                <TouchableOpacity onPress={() => setShowPicker(false)}>
-                  <Text style={styles.pickerClose}>✕</Text>
-                </TouchableOpacity>
-              </View>
-              <LanguagePicker
-                languages={TARGET_LANGUAGES}
-                selectedCode={targetLang}
-                onSelect={(code) => {
-                  setTargetLang(code);
-                  lastText.current = '';
-                  setTranslatedText('');
-                  setShowPicker(false);
-                }}
-                label="Translate To"
-              />
-            </View>
-          </View>
-        )}
-      </View>
-    );
-  }
-
-  // ─── Home screen ──────────────────────────────────────────────────────────────
   return (
-    <View style={styles.homeRoot}>
-      <View style={styles.brandRow}>
-        <Text style={styles.brandIcon}>🔍</Text>
-        <View>
-          <Text style={styles.brandTitle}>Bharat Lens</Text>
-          <Text style={styles.brandSub}>Real-time camera translation</Text>
-        </View>
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>📷 Bharat Lens</Text>
+        <Text style={styles.headerSub}>Photo se text scan karo aur translate karo</Text>
       </View>
 
-      <View style={styles.langRow}>
+      {/* Language Selector */}
+      <View style={styles.langCard}>
         <Text style={styles.langLabel}>Translate to:</Text>
         <View style={styles.langPickerWrap}>
           <LanguagePicker
             languages={TARGET_LANGUAGES}
             selectedCode={targetLang}
-            onSelect={(code) => { setTargetLang(code); lastText.current = ''; }}
+            onSelect={(code) => { setTargetLang(code); setTranslatedText(''); }}
             label="Target Language"
           />
         </View>
       </View>
 
-      <TouchableOpacity
-        style={styles.startBtn}
-        onPress={() => setLensOn(true)}
-      >
-        <Text style={styles.startBtnIcon}>🔍</Text>
-        <Text style={styles.startBtnText}>Bharat Lens Start Karo</Text>
-        <Text style={styles.startBtnSub}>Camera se text auto translate hoga</Text>
-      </TouchableOpacity>
+      {/* Action Buttons */}
+      <View style={styles.actionRow}>
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.cameraBtn]}
+          onPress={handleCamera}
+          disabled={processing}
+        >
+          <Text style={styles.actionIcon}>📷</Text>
+          <Text style={styles.actionLabel}>Camera</Text>
+          <Text style={styles.actionSub}>Photo lo</Text>
+        </TouchableOpacity>
 
-      <View style={styles.infoCard}>
-        <Text style={styles.infoTitle}>Kaise kaam karta hai?</Text>
-        <Text style={styles.infoItem}>📷  Camera kisi bhi text pe point karo</Text>
-        <Text style={styles.infoItem}>🔍  Har 2 second mein auto scan hoga</Text>
-        <Text style={styles.infoItem}>⚡  Turant translation screen pe dikhega</Text>
-        <Text style={styles.infoItem}>🌐  50+ languages support</Text>
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.galleryBtn]}
+          onPress={handleGallery}
+          disabled={processing}
+        >
+          <Text style={styles.actionIcon}>🖼️</Text>
+          <Text style={styles.actionLabel}>Gallery</Text>
+          <Text style={styles.actionSub}>Image chuno</Text>
+        </TouchableOpacity>
       </View>
-    </View>
+
+      {/* Processing */}
+      {processing && (
+        <View style={styles.processingCard}>
+          <ActivityIndicator color={theme.colors.primary} size="large" />
+          <Text style={styles.processingText}>
+            {step === 'scanning' ? '🔍 Text scan ho raha hai...' : '⚡ Translate ho raha hai...'}
+          </Text>
+        </View>
+      )}
+
+      {/* Image Preview */}
+      {capturedUri && !processing && (
+        <View style={styles.imageCard}>
+          <Image source={{ uri: capturedUri }} style={styles.previewImage} resizeMode="cover" />
+        </View>
+      )}
+
+      {/* Detected Text */}
+      {detectedText && !processing && (
+        <View style={styles.resultCard}>
+          <Text style={styles.resultLabel}>📝 Detected Text</Text>
+          <Text style={styles.detectedText} selectable>{detectedText}</Text>
+        </View>
+      )}
+
+      {/* Translated Text */}
+      {translatedText && !processing && (
+        <View style={[styles.resultCard, styles.translatedCard]}>
+          <View style={styles.translatedHeader}>
+            <Text style={styles.resultLabel}>
+              {targetLangObj?.flag} Translation — {targetLangObj?.name}
+            </Text>
+            <TTSButton
+              text={translatedText}
+              locale={targetLangObj?.ttsLocale}
+              disabled={false}
+              emotion="normal"
+            />
+          </View>
+          <Text style={styles.translatedText} selectable>{translatedText}</Text>
+          <View style={styles.outputActions}>
+            <TouchableOpacity
+              onPress={() => { Clipboard.setString(translatedText); Alert.alert('Copied!'); }}
+              style={styles.outBtn}
+            >
+              <Text style={styles.outBtnText}>📋 Copy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={async () => { try { await Share.share({ message: translatedText }); } catch (e) {} }}
+              style={styles.outBtn}
+            >
+              <Text style={styles.outBtnText}>↗ Share</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Reset */}
+      {(detectedText || capturedUri) && !processing && (
+        <TouchableOpacity style={styles.resetBtn} onPress={handleReset}>
+          <Text style={styles.resetBtnText}>🔄 Naya Scan</Text>
+        </TouchableOpacity>
+      )}
+    </ScrollView>
   );
 };
 
 const makeStyles = (theme) =>
   StyleSheet.create({
-    // Permission / no device
-    centered: {
-      flex: 1, alignItems: 'center', justifyContent: 'center',
-      padding: 32, backgroundColor: theme.colors.background,
-    },
-    bigIcon: { fontSize: 56, marginBottom: 16 },
-    permTitle: { fontSize: 20, fontWeight: '700', color: theme.colors.text, marginBottom: 10, textAlign: 'center' },
-    permDesc: { fontSize: 14, color: theme.colors.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-    permBtn: { backgroundColor: theme.colors.primary, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 12 },
-    permBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    root: { flex: 1, backgroundColor: theme.colors.background },
+    content: { padding: 16, paddingBottom: 40 },
 
-    // Live lens
-    lensRoot: { flex: 1, backgroundColor: '#000' },
-    topBar: {
-      position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: 16, paddingTop: 48, paddingBottom: 14,
-      backgroundColor: 'rgba(0,0,0,0.55)',
-    },
-    closeBtn: {
-      width: 36, height: 36, borderRadius: 18,
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      alignItems: 'center', justifyContent: 'center',
-    },
-    closeBtnText: { color: '#fff', fontSize: 18 },
-    langBadge: {
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-    },
-    langBadgeText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-    statusDot: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-    activeDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#4CAF50' },
+    header: { marginBottom: 20, paddingTop: 4 },
+    headerTitle: { fontSize: 24, fontWeight: '800', color: theme.colors.primary },
+    headerSub: { fontSize: 13, color: theme.colors.textSecondary, marginTop: 2 },
 
-    // Scan frame
-    frameContainer: {
-      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-      alignItems: 'center', justifyContent: 'center',
+    langCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: theme.colors.surface, borderRadius: 14,
+      padding: 12, marginBottom: 16,
+      borderWidth: 1, borderColor: theme.colors.border,
     },
-    frame: {
-      width: W - 60, height: 180, position: 'relative',
-    },
-    corner: {
-      position: 'absolute', width: 28, height: 28,
-      borderColor: '#FFFFFF', borderWidth: 3,
-    },
-    cTL: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 8 },
-    cTR: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 8 },
-    cBL: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 8 },
-    cBR: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 8 },
-    frameHint: {
-      color: '#fff', fontSize: 13, marginTop: 14,
-      backgroundColor: 'rgba(0,0,0,0.6)',
-      paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20,
-    },
-
-    // Translation overlay
-    overlay: {
-      position: 'absolute', bottom: 40, left: 16, right: 16,
-      backgroundColor: 'rgba(0,0,0,0.82)',
-      borderRadius: 16, padding: 16,
-    },
-    overlayOriginal: { color: '#AAA', fontSize: 12, marginBottom: 8 },
-    overlayLoading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    overlayLoadingText: { color: '#fff', fontSize: 14 },
-    overlayTranslated: { color: '#fff', fontSize: 18, fontWeight: '700', lineHeight: 26 },
-
-    // Language picker overlay
-    pickerOverlay: {
-      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end',
-    },
-    pickerSheet: {
-      backgroundColor: theme.colors.surface,
-      borderTopLeftRadius: 20, borderTopRightRadius: 20,
-      maxHeight: H * 0.7, paddingBottom: 20,
-    },
-    pickerHeader: {
-      flexDirection: 'row', justifyContent: 'space-between',
-      alignItems: 'center', padding: 16,
-      borderBottomWidth: 1, borderBottomColor: theme.colors.divider,
-    },
-    pickerTitle: { fontSize: 17, fontWeight: '700', color: theme.colors.text },
-    pickerClose: { fontSize: 18, color: theme.colors.textSecondary, padding: 4 },
-
-    // Home screen
-    homeRoot: { flex: 1, backgroundColor: theme.colors.background, padding: 16 },
-    brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24, marginTop: 8 },
-    brandIcon: { fontSize: 44 },
-    brandTitle: { fontSize: 24, fontWeight: '800', color: theme.colors.primary },
-    brandSub: { fontSize: 13, color: theme.colors.textSecondary, marginTop: 2 },
-    langRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 },
     langLabel: { fontSize: 14, color: theme.colors.textSecondary, fontWeight: '500' },
     langPickerWrap: { flex: 1 },
-    startBtn: {
-      backgroundColor: theme.colors.primary, borderRadius: 16,
-      paddingVertical: 24, alignItems: 'center', marginBottom: 20,
-      elevation: 4, shadowColor: theme.colors.primary,
-      shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6,
+
+    actionRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+    actionBtn: {
+      flex: 1, borderRadius: 16, paddingVertical: 22,
+      alignItems: 'center', justifyContent: 'center',
+      borderWidth: 1,
     },
-    startBtnIcon: { fontSize: 40, marginBottom: 6 },
-    startBtnText: { color: '#fff', fontSize: 20, fontWeight: '800' },
-    startBtnSub: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 4 },
-    infoCard: {
+    cameraBtn: {
+      backgroundColor: theme.colors.primary,
+      borderColor: theme.colors.primary,
+      shadowColor: theme.colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
+    },
+    galleryBtn: {
+      backgroundColor: theme.colors.surface,
+      borderColor: theme.colors.border,
+    },
+    actionIcon: { fontSize: 34, marginBottom: 6 },
+    actionLabel: {
+      fontSize: 15, fontWeight: '700',
+      color: theme.colors.text,
+    },
+    actionSub: { fontSize: 12, color: theme.colors.textSecondary, marginTop: 2 },
+
+    processingCard: {
       backgroundColor: theme.colors.surface, borderRadius: 14,
-      borderWidth: 1, borderColor: theme.colors.border, padding: 16, gap: 10,
+      padding: 24, alignItems: 'center', gap: 12, marginBottom: 12,
+      borderWidth: 1, borderColor: theme.colors.border,
     },
-    infoTitle: { fontSize: 15, fontWeight: '700', color: theme.colors.text, marginBottom: 4 },
-    infoItem: { fontSize: 14, color: theme.colors.textSecondary, lineHeight: 22 },
+    processingText: { fontSize: 15, color: theme.colors.textSecondary },
+
+    imageCard: {
+      borderRadius: 14, overflow: 'hidden', marginBottom: 12,
+      borderWidth: 1, borderColor: theme.colors.border,
+    },
+    previewImage: { width: '100%', height: 200 },
+
+    resultCard: {
+      backgroundColor: theme.colors.surface, borderRadius: 14,
+      borderWidth: 1, borderColor: theme.colors.border,
+      padding: 14, marginBottom: 12,
+    },
+    translatedCard: {
+      borderColor: theme.colors.primary, borderWidth: 1.5,
+    },
+    resultLabel: {
+      fontSize: 12, fontWeight: '700', color: theme.colors.textSecondary,
+      textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8,
+    },
+    translatedHeader: {
+      flexDirection: 'row', justifyContent: 'space-between',
+      alignItems: 'center', marginBottom: 8,
+    },
+    detectedText: { fontSize: 14, color: theme.colors.textSecondary, lineHeight: 20 },
+    translatedText: { fontSize: 16, color: theme.colors.text, lineHeight: 24 },
+
+    outputActions: {
+      flexDirection: 'row', gap: 8, marginTop: 12,
+      paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.colors.divider,
+    },
+    outBtn: {
+      paddingHorizontal: 14, paddingVertical: 8,
+      borderRadius: 10, backgroundColor: theme.colors.surfaceVariant,
+      borderWidth: 1, borderColor: theme.colors.border,
+    },
+    outBtnText: { fontSize: 13, color: theme.colors.text, fontWeight: '500' },
+
+    resetBtn: {
+      alignItems: 'center', paddingVertical: 14,
+      borderRadius: 12, borderWidth: 1, borderColor: theme.colors.border,
+    },
+    resetBtnText: { fontSize: 15, color: theme.colors.primary, fontWeight: '600' },
   });
 
 export default CameraScreen;

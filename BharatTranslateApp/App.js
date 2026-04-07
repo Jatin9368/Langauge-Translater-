@@ -6,12 +6,14 @@ import { Text, StyleSheet } from 'react-native';
 
 import { ThemeProvider, useTheme } from './src/ThemeContext';
 import HomeScreen from './src/screens/HomeScreen';
+import CameraScreen from './src/screens/CameraScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 
 const Tab = createBottomTabNavigator();
 
 const TAB_ICONS = {
   Home: '🏠',
+  Camera: '📷',
   History: '📜',
 };
 
@@ -60,6 +62,11 @@ const AppNavigator = () => {
           name="Home"
           component={HomeScreen}
           options={{ tabBarLabel: 'Translate' }}
+        />
+        <Tab.Screen
+          name="Camera"
+          component={CameraScreen}
+          options={{ tabBarLabel: 'Lens' }}
         />
         <Tab.Screen
           name="History"
