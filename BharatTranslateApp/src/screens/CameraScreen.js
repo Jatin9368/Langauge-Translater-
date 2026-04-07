@@ -63,11 +63,34 @@ const CameraScreen = () => {
   };
 
   const handleCamera = () => {
-    launchCamera({ mediaType: 'photo', quality: 0.9, saveToPhotos: false }, (response) => {
-      if (response.didCancel || response.errorCode) return;
-      const uri = response.assets?.[0]?.uri;
-      if (uri) processImage(uri);
-    });
+    launchCamera(
+      {
+        mediaType: 'photo',
+        quality: 0.9,
+        saveToPhotos: false,
+        cameraType: 'back',
+        includeBase64: false,
+      },
+      (response) => {
+        if (response.didCancel) return;
+        if (response.errorCode) {
+          if (response.errorCode === 'camera_unavailable') {
+            Alert.alert('Camera Unavailable', 'Camera is not available on this device.');
+          } else if (response.errorCode === 'permission') {
+            Alert.alert(
+              'Permission Required',
+              'Camera permission chahiye. Settings mein jaake Camera allow karo.',
+              [{ text: 'OK' }]
+            );
+          } else {
+            Alert.alert('Error', response.errorMessage || 'Camera error.');
+          }
+          return;
+        }
+        const uri = response.assets?.[0]?.uri;
+        if (uri) processImage(uri);
+      }
+    );
   };
 
   const handleGallery = () => {
