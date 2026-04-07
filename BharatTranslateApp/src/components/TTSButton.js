@@ -92,10 +92,22 @@ const TTSButton = ({ text, locale, disabled, emotion = 'normal' }) => {
   const settings = EMOTION_SETTINGS[emotion] || EMOTION_SETTINGS.normal;
 
   useEffect(() => {
+    // TTS initialize karo
+    Tts.getInitStatus().then(() => {
+      console.log('TTS initialized');
+    }).catch((err) => {
+      if (err.code === 'no_engine') {
+        Tts.requestInstallEngine();
+      }
+    });
+
     const s = Tts.addEventListener('tts-start', () => setSpeaking(true));
     const f = Tts.addEventListener('tts-finish', () => setSpeaking(false));
     const c = Tts.addEventListener('tts-cancel', () => setSpeaking(false));
-    const e = Tts.addEventListener('tts-error', () => setSpeaking(false));
+    const e = Tts.addEventListener('tts-error', (err) => {
+      console.log('TTS error:', err);
+      setSpeaking(false);
+    });
     return () => { s.remove(); f.remove(); c.remove(); e.remove(); };
   }, []);
 

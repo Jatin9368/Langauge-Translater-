@@ -35,7 +35,7 @@ const StyleSelector = ({ outputText, targetLang }) => {
     setLoading(true);
     setStyleResults(null);
     try {
-      const result = await rephraseStyle({ text: outputText, targetLang });
+      const result = await rephraseStyle({ text: outputText });
       setStyleResults(result.styles);
       setExpanded(true);
     } catch (err) {
@@ -64,7 +64,7 @@ const StyleSelector = ({ outputText, targetLang }) => {
         onPress={() => outputText && setExpanded(!expanded)}
         activeOpacity={0.7}
       >
-        <Text style={styles.title}>✨ Style Rephrase</Text>
+        <Text style={styles.title}>🎭 Vibe Check — 3 Styles</Text>
         <View style={styles.headerBtns}>
           {/* Cross button — sirf tab dikhe jab content ho */}
           {styleResults && (
@@ -92,7 +92,7 @@ const StyleSelector = ({ outputText, targetLang }) => {
       </TouchableOpacity>
 
       <Text style={styles.subtitle}>
-        Same sentence — 4 alag styles mein
+        Same sentence — Gen-Z, Formal, Funny style mein
       </Text>
 
       {/* Style cards */}

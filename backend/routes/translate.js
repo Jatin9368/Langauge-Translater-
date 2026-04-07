@@ -3,57 +3,45 @@ const axios = require('axios');
 const router = express.Router();
 const History = require('../models/History');
 
-// MyMemory Free API — no key needed, no rate limit for normal use
-const translateWithMyMemory = async (text, sourceLang, targetLang) => {
-  const src = (!sourceLang || sourceLang === 'auto') ? 'en' : sourceLang;
-  const langPair = `${src}|${targetLang}`;
+const LANGBLY_KEY = process.env.LANGBLY_API_KEY;
+const LANGBLY_URL = 'https://api.langbly.com/language/translate/v2';
 
-  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langPair}&de=bharattranslate@app.com`;
-
-  const response = await axios.get(url, { timeout: 15000 });
-
-  const data = response.data;
-  if (data.responseStatus === 200 && data.responseData?.translatedText) {
-    return {
-      text: data.responseData.translatedText,
-      detectedLang: src,
-    };
-  }
-  throw new Error(data.responseDetails || 'MyMemory failed');
+// Langbly Translation API
+const translateWithLangbly = async (text, sourceLang, targetLang) => {
+  const params = { q: text, target: targetLang, key: LANGBLY_KEY };
+  if (sourceLang && sourceLang !== 'auto') params.source = sourceLang;
+  const res = await axios.post(LANGBLY_URL, null, { params, timeout: 15000 });
+  const translation = res.data?.data?.translations?.[0];
+  if (!translation?.translatedText) throw new Error('Empty Langbly response');
+  const t = translation.translatedText;
+  const badChars = (t.match(/[^\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFD]/g) || []).length;
+  if (t.length > 0 && badChars / t.length > 0.3) throw new Error('Garbled response');
+  return { text: t, detectedLang: translation.detectedSourceLanguage || sourceLang || 'auto' };
 };
 
-// HuggingFace as secondary option
-const translateWithHF = async (text, sourceLang, targetLang) => {
-  const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
-  const MODEL_MAP = {
-    'en-hi': 'opus-mt-en-hi', 'hi-en': 'opus-mt-hi-en',
-    'en-fr': 'opus-mt-en-fr', 'fr-en': 'opus-mt-fr-en',
-    'en-de': 'opus-mt-en-de', 'de-en': 'opus-mt-de-en',
-    'en-es': 'opus-mt-en-es', 'es-en': 'opus-mt-es-en',
-    'en-ar': 'opus-mt-en-ar', 'ar-en': 'opus-mt-ar-en',
-    'en-ru': 'opus-mt-en-ru', 'ru-en': 'opus-mt-ru-en',
-    'en-zh': 'opus-mt-en-zh', 'en-ja': 'opus-mt-en-jap',
-    'en-bn': 'opus-mt-en-bn', 'en-ur': 'opus-mt-en-ur',
-    'en-ta': 'opus-mt-en-dra', 'en-te': 'opus-mt-en-dra',
-    'en-ml': 'opus-mt-en-dra', 'en-kn': 'opus-mt-en-dra',
-  };
+// Languages that need English as pivot for best quality
+const PIVOT_LANGS = new Set([
+  'te', 'ta', 'ml', 'kn', 'or', 'as', 'mai', 'sat', 'ks',
+  'kok', 'sd', 'doi', 'mni-Mtei', 'brx', 'pa', 'gu', 'mr',
+  'bn', 'ur', 'ne', 'sw', 'ms', 'fa',
+]);
 
-  const src = sourceLang === 'auto' ? 'en' : sourceLang;
-  const model = MODEL_MAP[`${src}-${targetLang}`];
-  if (!model) throw new Error(`No HF model for ${src}-${targetLang}`);
+const translateWithPivot = async (text, sourceLang, targetLang) => {
+  const step1 = await translateWithLangbly(text, sourceLang, 'en');
+  const step2 = await translateWithLangbly(step1.text, 'en', targetLang);
+  return { text: step2.text, detectedLang: sourceLang };
+};
 
-  const res = await axios.post(
-    `https://router.huggingface.co/hf-inference/models/Helsinki-NLP/${model}`,
-    { inputs: text },
-    {
-      headers: { Authorization: `Bearer ${HF_API_KEY}`, 'Content-Type': 'application/json' },
-      timeout: 20000,
-    }
-  );
-
-  const translated = res.data?.[0]?.translation_text;
-  if (!translated) throw new Error('Empty HF response');
-  return { text: translated, detectedLang: src };
+// MyMemory fallback
+const translateWithMyMemory = async (text, sourceLang, targetLang) => {
+  const src = (!sourceLang || sourceLang === 'auto') ? 'en' : sourceLang;
+  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${src}|${targetLang}`;
+  const res = await axios.get(url, { timeout: 15000 });
+  const data = res.data;
+  if (data.responseStatus === 200 && data.responseData?.translatedText) {
+    return { text: data.responseData.translatedText, detectedLang: src };
+  }
+  throw new Error('MyMemory failed');
 };
 
 // POST /api/translate
@@ -68,37 +56,37 @@ router.post('/', async (req, res, next) => {
     let detectedLang = sourceLang || 'auto';
     let usedEngine = '';
 
-    // Try MyMemory first — most reliable
     try {
-      const result = await translateWithMyMemory(text.trim(), sourceLang || 'auto', targetLang);
+      const usePivot = PIVOT_LANGS.has(sourceLang) || PIVOT_LANGS.has(targetLang);
+      let result;
+
+      if (usePivot && sourceLang !== 'en' && targetLang !== 'en') {
+        result = await translateWithPivot(text.trim(), sourceLang || 'auto', targetLang);
+        console.log(`[Langbly Pivot] ${sourceLang}→en→${targetLang}: OK`);
+      } else {
+        result = await translateWithLangbly(text.trim(), sourceLang, targetLang);
+        console.log(`[Langbly] ${sourceLang}→${targetLang}: OK`);
+      }
+
       translatedText = result.text;
-      detectedLang = result.detectedLang || sourceLang || 'auto';
-      usedEngine = 'mymemory';
-      console.log(`[MyMemory] ${sourceLang}→${targetLang}: OK`);
-    } catch (mmErr) {
-      console.log(`[MyMemory] Failed: ${mmErr.message} — trying HuggingFace`);
-      // HuggingFace fallback
+      detectedLang = result.detectedLang;
+      usedEngine = 'langbly';
+    } catch (err) {
+      console.log(`[Langbly] Failed: ${err.message} — MyMemory fallback`);
       try {
-        const result = await translateWithHF(text.trim(), sourceLang || 'auto', targetLang);
+        const result = await translateWithMyMemory(text.trim(), sourceLang, targetLang);
         translatedText = result.text;
         detectedLang = result.detectedLang;
-        usedEngine = 'huggingface';
-        console.log(`[HF] ${sourceLang}→${targetLang}: OK`);
-      } catch (hfErr) {
-        console.log(`[HF] Failed: ${hfErr.message}`);
-        return res.status(503).json({
-          success: false,
-          error: 'Translation unavailable. Please try again.',
-        });
+        usedEngine = 'mymemory';
+      } catch (mmErr) {
+        return res.status(503).json({ success: false, error: 'Translation unavailable. Try again.' });
       }
     }
 
     if (saveHistory !== false) {
       History.create({
-        sourceText: text.trim(),
-        translatedText,
-        sourceLang: detectedLang,
-        targetLang,
+        sourceText: text.trim(), translatedText,
+        sourceLang: detectedLang, targetLang,
         sourceLangName: sourceLangName || detectedLang,
         targetLangName: targetLangName || targetLang,
       }).catch((e) => console.error('History save error:', e.message));
@@ -106,7 +94,6 @@ router.post('/', async (req, res, next) => {
 
     return res.json({ success: true, translatedText, detectedLang, engine: usedEngine });
   } catch (err) {
-    console.error('Translation error:', err.message);
     next(err);
   }
 });
@@ -116,12 +103,7 @@ router.post('/detect', async (req, res, next) => {
   try {
     const { text } = req.body;
     if (!text?.trim()) return res.status(400).json({ success: false, error: 'Text is required' });
-    try {
-      const result = await translateWithMyMemory(text.trim(), 'auto', 'en');
-      return res.json({ success: true, detectedLang: result.detectedLang || 'auto', confidence: 1 });
-    } catch {
-      return res.json({ success: true, detectedLang: 'auto', confidence: 0 });
-    }
+    return res.json({ success: true, detectedLang: 'auto', confidence: 0 });
   } catch (err) {
     next(err);
   }

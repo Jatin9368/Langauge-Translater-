@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 
 // Replace with your machine's local IP when testing on a physical device
 // e.g. 'http://192.168.1.100:5000'
-const BASE_URL = 'http://192.168.110.201:5000'; // Physical device IP
+const BASE_URL = 'http://localhost:5000'; // USB adb reverse se connect
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -63,9 +63,9 @@ export const rephraseEmotion = async ({ text, emotion, targetLang }) => {
 
 // ─── Style Rephrase ───────────────────────────────────────────────────────────
 
-export const rephraseStyle = async ({ text, targetLang }) => {
+export const rephraseStyle = async ({ text }) => {
   try {
-    const res = await api.post('/api/style/rephrase', { text, targetLang });
+    const res = await api.post('/api/style/rephrase', { text });
     return res.data;
   } catch (err) {
     throw err;
