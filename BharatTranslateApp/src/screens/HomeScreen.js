@@ -219,7 +219,7 @@ const HomeScreen = () => {
         )}
 
         {/* Vibe Check */}
-        {outputText && <VibeCheckSection outputText={outputText} />}
+        {outputText && <VibeCheckSection outputText={outputText} targetLang={targetLang} />}
 
       </ScrollView>
     </KeyboardAvoidingView>

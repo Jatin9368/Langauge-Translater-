@@ -7,12 +7,12 @@ import { useTheme } from '../ThemeContext';
 import { rephraseStyle } from '../api';
 
 const STYLES = [
-  { key: 'gen_z',  emoji: '\uD83D\uDE0E', label: 'Gen-Z',  color: '#6C63FF', bg: 'rgba(108,99,255,0.12)' },
-  { key: 'formal', emoji: '\uD83D\uDC54', label: 'Formal',  color: '#43E8D8', bg: 'rgba(67,232,216,0.12)' },
-  { key: 'funny',  emoji: '\uD83D\uDE02', label: 'Funny',   color: '#FF6584', bg: 'rgba(255,101,132,0.12)' },
+  { key: 'gen_z',  emoji: '\uD83D\uDE0E', label: 'Gen-Z',  color: '#6C63FF', bg: 'rgba(108,99,255,0.1)' },
+  { key: 'funny',  emoji: '\uD83D\uDE02', label: 'Funny',   color: '#FF6584', bg: 'rgba(255,101,132,0.1)' },
+  { key: 'formal', emoji: '\uD83D\uDC54', label: 'Formal',  color: '#10B981', bg: 'rgba(16,185,129,0.1)' },
 ];
 
-const VibeCheckSection = ({ outputText }) => {
+const VibeCheckSection = ({ outputText, targetLang }) => {
   const { theme } = useTheme();
   const styles = makeStyles(theme);
 
@@ -29,7 +29,7 @@ const VibeCheckSection = ({ outputText }) => {
     }
     setLoading(true);
     try {
-      const result = await rephraseStyle({ text: outputText });
+      const result = await rephraseStyle({ text: outputText, targetLang });
       setResults(result.styles);
       setOpen(true);
     } catch (err) {
@@ -65,27 +65,36 @@ const VibeCheckSection = ({ outputText }) => {
           {STYLES.map((s) => {
             const result = results[s.key];
             if (!result) return null;
+            const options = result.options || [result.text];
             return (
               <View key={s.key} style={[styles.card, { borderLeftColor: s.color, backgroundColor: s.bg }]}>
+                {/* Card Header */}
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardEmoji}>{s.emoji}</Text>
                   <Text style={[styles.cardLabel, { color: s.color }]}>{s.label}</Text>
-                  <View style={styles.cardActions}>
-                    <TouchableOpacity
-                      onPress={() => { Clipboard.setString(result.text); Alert.alert('Copied!'); }}
-                      style={styles.miniBtn}
-                    >
-                      <Text style={styles.miniBtnText}>Copy</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={async () => { try { await Share.share({ message: result.text }); } catch (e) {} }}
-                      style={styles.miniBtn}
-                    >
-                      <Text style={styles.miniBtnText}>Share</Text>
-                    </TouchableOpacity>
-                  </View>
                 </View>
-                <Text style={styles.cardText} selectable>{result.text}</Text>
+
+                {/* Options */}
+                {options.map((opt, idx) => (
+                  <View key={idx} style={styles.optionRow}>
+                    <Text style={[styles.optionNum, { color: s.color }]}>{idx + 1}</Text>
+                    <Text style={styles.optionText} selectable>{opt}</Text>
+                    <View style={styles.optionActions}>
+                      <TouchableOpacity
+                        onPress={() => { Clipboard.setString(opt); Alert.alert('Copied!'); }}
+                        style={styles.miniBtn}
+                      >
+                        <Text style={styles.miniBtnText}>Copy</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={async () => { try { await Share.share({ message: opt }); } catch (e) {} }}
+                        style={styles.miniBtn}
+                      >
+                        <Text style={styles.miniBtnText}>Share</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
               </View>
             );
           })}
@@ -106,18 +115,27 @@ const makeStyles = (theme) =>
     },
     vibeBtnActive: { backgroundColor: 'rgba(255,101,132,0.15)', borderColor: '#FF6584' },
     vibeBtnText: { color: theme.colors.text, fontSize: 15, fontWeight: '700' },
-    cardsContainer: { marginTop: 10, gap: 10 },
-    card: { borderRadius: 12, borderLeftWidth: 3, padding: 12 },
-    cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 },
-    cardEmoji: { fontSize: 18 },
-    cardLabel: { fontSize: 13, fontWeight: '700', flex: 1 },
-    cardActions: { flexDirection: 'row', gap: 6 },
+
+    cardsContainer: { marginTop: 10, gap: 12 },
+    card: { borderRadius: 14, borderLeftWidth: 3, padding: 14 },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+    cardEmoji: { fontSize: 20 },
+    cardLabel: { fontSize: 15, fontWeight: '800' },
+
+    optionRow: {
+      flexDirection: 'row', alignItems: 'flex-start',
+      gap: 8, marginBottom: 10,
+      paddingBottom: 10, borderBottomWidth: 1,
+      borderBottomColor: 'rgba(0,0,0,0.06)',
+    },
+    optionNum: { fontSize: 13, fontWeight: '800', marginTop: 2, minWidth: 16 },
+    optionText: { flex: 1, fontSize: 14, color: theme.colors.text, lineHeight: 20 },
+    optionActions: { flexDirection: 'row', gap: 4 },
     miniBtn: {
       paddingHorizontal: 8, paddingVertical: 4,
-      borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.15)',
+      borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.08)',
     },
-    miniBtnText: { fontSize: 12, color: theme.colors.text, fontWeight: '600' },
-    cardText: { fontSize: 14, color: theme.colors.text, lineHeight: 21 },
+    miniBtnText: { fontSize: 11, color: theme.colors.text, fontWeight: '600' },
   });
 
 export default VibeCheckSection;

@@ -36,7 +36,7 @@ const PIVOT_LANGS = new Set([
   'kok', 'sd', 'doi', 'mni-Mtei', 'brx', 'pa', 'gu', 'mr',
   'bn', 'ur', 'ne', 'sw', 'ms', 'fa',
 ]);
-
+  
 const translateWithPivot = async (text, sourceLang, targetLang) => {
   const step1 = await translateWithLangbly(text, sourceLang, 'en');
   const step2 = await translateWithLangbly(step1.text, 'en', targetLang);

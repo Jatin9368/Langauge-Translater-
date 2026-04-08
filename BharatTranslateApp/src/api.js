@@ -63,9 +63,9 @@ export const rephraseEmotion = async ({ text, emotion, targetLang }) => {
 
 // ─── Style Rephrase ───────────────────────────────────────────────────────────
 
-export const rephraseStyle = async ({ text }) => {
+export const rephraseStyle = async ({ text, targetLang }) => {
   try {
-    const res = await api.post('/api/style/rephrase', { text });
+    const res = await api.post('/api/style/rephrase', { text, targetLang });
     return res.data;
   } catch (err) {
     throw err;
