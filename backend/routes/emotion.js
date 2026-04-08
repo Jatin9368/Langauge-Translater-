@@ -2,7 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_API_KEY = process.env;
 
 const EMOTION_CONFIG = {
   love:  { ttsRate: 0.36, ttsPitch: 1.25 },

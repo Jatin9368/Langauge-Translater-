@@ -35,5 +35,5 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.use(errorHandler);
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`LexiFlow backend running on port ${PORT}`);
+  console.log(`Samvaadini Bharat backend running on port ${PORT}`);
 });

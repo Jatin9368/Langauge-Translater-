@@ -127,7 +127,14 @@ router.post('/detect', async (req, res, next) => {
   try {
     const { text } = req.body;
     if (!text?.trim()) return res.status(400).json({ success: false, error: 'Text is required' });
-    return res.json({ success: true, detectedLang: 'auto', confidence: 0 });
+    try {
+      const { translate } = require('@vitalets/google-translate-api');
+      const result = await translate(text.trim().slice(0, 100), { to: 'en' });
+      const detected = result.raw?.src || 'auto';
+      return res.json({ success: true, detectedLang: detected, confidence: 1 });
+    } catch {
+      return res.json({ success: true, detectedLang: 'auto', confidence: 0 });
+    }
   } catch (err) {
     next(err);
   }
