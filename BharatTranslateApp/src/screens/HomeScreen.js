@@ -58,7 +58,7 @@ const HomeScreen = () => {
 
   const runTranslation = async () => {
     if (!inputText.trim()) {
-      Alert.alert('Kuch likhein', 'Pehle kuch text daalo.');
+      Alert.alert('Enter text', 'Please type something to translate.');
       return;
     }
     setTranslating(true);
@@ -189,7 +189,7 @@ const HomeScreen = () => {
         <View style={styles.inputCard}>
           <TextInput
             style={styles.inputText}
-            placeholder="Yahan text likhein..."
+            placeholder="Enter text to translate..."
             placeholderTextColor={theme.colors.textPlaceholder}
             value={inputText}
             onChangeText={setInputText}

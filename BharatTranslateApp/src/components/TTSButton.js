@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
 import Tts from 'react-native-tts';
 import { useTheme } from '../ThemeContext';
@@ -45,32 +45,32 @@ const transformTextForEmotion = (text, emotion) => {
 const EMOTION_SETTINGS = {
   love: {
     rate: 0.35,   // slow aur soft
-    pitch: 1.2,   // thoda high — warm
-    emoji: '❤️',
+    pitch: 1.2,   // thoda high â€” warm
+    emoji: 'â¤ï¸',
     label: 'Love',
     color: '#FCE4EC',
     borderColor: '#E91E63',
   },
   sad: {
-    rate: 0.28,   // bahut slow — rona wala
-    pitch: 0.75,  // low — dukhi
-    emoji: '😢',
+    rate: 0.28,   // bahut slow â€” rona wala
+    pitch: 0.75,  // low â€” dukhi
+    emoji: 'ðŸ˜¢',
     label: 'Sad',
     color: '#E8EAF6',
     borderColor: '#5C6BC0',
   },
   angry: {
-    rate: 0.45,   // medium — clearly gusse se bole, fast nahi
-    pitch: 0.65,  // deep/low — aggressive
-    emoji: '😡',
+    rate: 0.45,   // medium â€” clearly gusse se bole, fast nahi
+    pitch: 0.65,  // deep/low â€” aggressive
+    emoji: 'ðŸ˜¡',
     label: 'Angry',
     color: '#FFEBEE',
     borderColor: '#F44336',
   },
   happy: {
-    rate: 0.55,   // thoda fast — excited
-    pitch: 1.4,   // high — khushi
-    emoji: '😄',
+    rate: 0.55,   // thoda fast â€” excited
+    pitch: 1.4,   // high â€” khushi
+    emoji: 'ðŸ˜„',
     label: 'Happy',
     color: '#FFFDE7',
     borderColor: '#FFC107',
@@ -78,7 +78,7 @@ const EMOTION_SETTINGS = {
   normal: {
     rate: 0.5,
     pitch: 1.0,
-    emoji: '🔊',
+    emoji: 'ðŸ”Š',
     label: '',
     color: null,
     borderColor: null,
@@ -123,11 +123,11 @@ const TTSButton = ({ text, locale, disabled, emotion = 'normal' }) => {
         return;
       }
       if (!text?.trim()) {
-        Alert.alert('Kuch nahi hai', 'Pehle translate karein.');
+        Alert.alert('Nothing here', 'Please translate first.');
         return;
       }
 
-      // Sirf voice ke liye transform — screen pe kuch nahi dikhata
+      // Sirf voice ke liye transform â€” screen pe kuch nahi dikhata
       const transformedText = transformTextForEmotion(text.trim(), emotion);
 
       if (locale) await Tts.setDefaultLanguage(locale);
@@ -138,7 +138,7 @@ const TTSButton = ({ text, locale, disabled, emotion = 'normal' }) => {
       Tts.speak(transformedText);
     } catch (err) {
       setSpeaking(false);
-      Alert.alert('TTS Error', err.message || 'Audio play nahi ho saka.');
+      Alert.alert('TTS Error', err.message || 'Could not play audio.');
     }
   };
 
@@ -163,7 +163,7 @@ const TTSButton = ({ text, locale, disabled, emotion = 'normal' }) => {
       accessibilityLabel={`${settings.label || 'Normal'} tone mein suno`}
     >
       <Text style={styles.emoji}>
-        {speaking ? '⏹' : settings.emoji}
+        {speaking ? 'â¹' : settings.emoji}
       </Text>
       {settings.label ? (
         <Text style={[styles.label, { color: borderColor }]}>
@@ -199,3 +199,4 @@ const makeStyles = (theme) =>
   });
 
 export default TTSButton;
+

@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import Tts from 'react-native-tts';
 import { useTheme } from '../ThemeContext';
 import { rephraseEmotion } from '../api';
 
 const EMOTIONS = [
-  { key: 'love',  label: 'Love',  emoji: '❤️', color: '#E91E63' },
-  { key: 'sad',   label: 'Sad',   emoji: '😢', color: '#5C6BC0' },
-  { key: 'angry', label: 'Angry', emoji: '😡', color: '#F44336' },
-  { key: 'happy', label: 'Happy', emoji: '😄', color: '#FFC107' },
+  { key: 'love',  label: 'Love',  emoji: '\u2764\uFE0F', color: '#E91E63' },
+  { key: 'sad',   label: 'Sad',   emoji: '\uD83D\uDE22', color: '#5C6BC0' },
+  { key: 'angry', label: 'Angry', emoji: '\uD83D\uDE21', color: '#F44336' },
+  { key: 'happy', label: 'Happy', emoji: '\uD83D\uDE04', color: '#FFC107' },
 ];
 
 const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
@@ -26,11 +26,10 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
 
   const handlePress = async (emotion) => {
     if (!text?.trim()) {
-      Alert.alert('Pehle translate karein');
+      Alert.alert('Translate first', 'Please translate some text first.');
       return;
     }
 
-    // Stop if already speaking
     if (speakingEmotion === emotion.key) {
       await Tts.stop();
       setSpeakingEmotion(null);
@@ -45,7 +44,6 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
     setLoadingEmotion(emotion.key);
 
     try {
-      // Backend se emotionally rewritten text lo
       const result = await rephraseEmotion({
         text: text.trim(),
         emotion: emotion.key,
@@ -63,7 +61,7 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
       setSpeakingEmotion(emotion.key);
       Tts.speak(voiceText);
     } catch (err) {
-      Alert.alert('Error', err.message || 'Voice nahi aa saki.');
+      Alert.alert('Error', err.message || 'Could not play voice.');
     } finally {
       setLoadingEmotion(null);
     }
@@ -87,12 +85,11 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
             onPress={() => handlePress(emotion)}
             disabled={disabled || !!loadingEmotion}
             accessibilityRole="button"
-            accessibilityLabel={`${emotion.label} tone mein suno`}
           >
             {isLoading ? (
               <ActivityIndicator size="small" color={emotion.color} />
             ) : (
-              <Text style={styles.emoji}>{isSpeaking ? '⏹' : emotion.emoji}</Text>
+              <Text style={styles.emoji}>{isSpeaking ? '\u23F9' : emotion.emoji}</Text>
             )}
             <Text style={[styles.label, { color: isSpeaking ? '#fff' : emotion.color }]}>
               {isLoading ? '...' : isSpeaking ? 'Stop' : emotion.label}
