@@ -27,16 +27,21 @@ const CameraScreen = () => {
 
   const CROP_OPTIONS = {
     cropping: true,
-    cropperToolbarTitle: 'Crop text area',
+    freeStyleCropEnabled: true,       // freely koi bhi shape mein crop karo
+    cropperRotateButtonsHidden: false, // rotate button dikhao
+    cropperToolbarTitle: 'Select Text Area',
     cropperActiveWidgetColor: '#4F46E5',
-    cropperStatusBarColor: '#4F46E5',
+    cropperStatusBarColor: '#3730A3',
     cropperToolbarColor: '#4F46E5',
     cropperToolbarWidgetColor: '#FFFFFF',
-    includeBase64: false,
-    compressImageQuality: 0.9,
-    freeStyleCropEnabled: true,
     cropperChooseText: 'Translate',
     cropperCancelText: 'Cancel',
+    includeBase64: false,
+    compressImageQuality: 0.95,
+    showCropGuidelines: true,         // grid lines dikhao
+    showCropFrame: true,              // crop frame dikhao
+    hideBottomControls: false,        // bottom controls dikhao
+    enableRotationGesture: true,      // pinch to rotate
   };
 
   const processImage = async (uri) => {

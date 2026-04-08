@@ -2,43 +2,87 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
-const EMOTION_PROMPTS = {
-  love:  `Say the given sentence with a warm loving emotional touch. Do NOT change the meaning or add new information. Just say the same thing with more affection. Same language as input. Return ONLY the sentence.`,
-  sad:   `Say the given sentence with a sad emotional touch. Do NOT change the meaning or add new information. Just say the same thing with more sadness. Same language as input. Return ONLY the sentence.`,
-  angry: `Say the given sentence with an angry emotional touch. Do NOT change the meaning or add new information. Just say the same thing more intensely. Same language as input. Return ONLY the sentence.`,
-  happy: `Say the given sentence with a happy excited emotional touch. Do NOT change the meaning or add new information. Just say the same thing more joyfully. Same language as input. Return ONLY the sentence.`,
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+
+// ElevenLabs voice IDs with emotion settings
+// Using "voice_settings" to control emotion intensity
+const EMOTION_VOICE_CONFIG = {
+  love: {
+    voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah — warm, soft
+    voice_settings: { stability: 0.3, similarity_boost: 0.8, style: 0.9, use_speaker_boost: true },
+    groq_prompt: `Rewrite this sentence with deep warmth and love. Same meaning, same language. Return ONLY the sentence.`,
+    ttsRate: 0.36, ttsPitch: 1.25,
+  },
+  sad: {
+    voice_id: 'onwK4e9ZLuTAKqWW03F9', // Daniel — deep, emotional
+    voice_settings: { stability: 0.8, similarity_boost: 0.7, style: 0.6, use_speaker_boost: false },
+    groq_prompt: `Rewrite this sentence with deep sadness and sorrow. Same meaning, same language. Return ONLY the sentence.`,
+    ttsRate: 0.30, ttsPitch: 0.78,
+  },
+  angry: {
+    voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam — strong, intense
+    voice_settings: { stability: 0.2, similarity_boost: 0.9, style: 1.0, use_speaker_boost: true },
+    groq_prompt: `Rewrite this sentence with intense anger and frustration. Same meaning, same language. Return ONLY the sentence.`,
+    ttsRate: 0.52, ttsPitch: 0.62,
+  },
+  happy: {
+    voice_id: 'jBpfuIE2acCO8z3wKNLl', // Gigi — cheerful, energetic
+    voice_settings: { stability: 0.3, similarity_boost: 0.8, style: 0.9, use_speaker_boost: true },
+    groq_prompt: `Rewrite this sentence with joy and excitement. Same meaning, same language. Return ONLY the sentence.`,
+    ttsRate: 0.46, ttsPitch: 1.35,
+  },
 };
 
-const EMOTION_CONFIG = {
-  love:  { rate: 0.36, pitch: 1.25 },
-  sad:   { rate: 0.30, pitch: 0.78 },
-  angry: { rate: 0.52, pitch: 0.62 },
-  happy: { rate: 0.46, pitch: 1.35 },
+// Groq — rewrite text with emotion
+const rewriteWithGroq = async (text, prompt) => {
+  if (!GROQ_API_KEY) return text;
+  try {
+    const res = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          { role: 'system', content: prompt },
+          { role: 'user', content: text },
+        ],
+        max_tokens: 200,
+        temperature: 0.85,
+      },
+      {
+        headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+        timeout: 15000,
+      }
+    );
+    return res.data?.choices?.[0]?.message?.content?.trim() || text;
+  } catch (e) {
+    console.log('Groq failed:', e.message);
+    return text;
+  }
 };
 
-const callGroq = async (text, emotion) => {
+// ElevenLabs — generate emotional audio (base64)
+const generateElevenLabsAudio = async (text, voiceId, voiceSettings) => {
   const res = await axios.post(
-    'https://api.groq.com/openai/v1/chat/completions',
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
     {
-      model: 'llama-3.1-8b-instant',
-      messages: [
-        { role: 'system', content: EMOTION_PROMPTS[emotion] },
-        { role: 'user', content: text },
-      ],
-      max_tokens: 200,
-      temperature: 0.85,
+      text,
+      model_id: 'eleven_multilingual_v2', // supports Hindi, Tamil, etc.
+      voice_settings: voiceSettings,
     },
     {
       headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        'xi-api-key': ELEVENLABS_API_KEY,
         'Content-Type': 'application/json',
+        Accept: 'audio/mpeg',
       },
-      timeout: 15000,
+      responseType: 'arraybuffer',
+      timeout: 30000,
     }
   );
-  const result = res.data?.choices?.[0]?.message?.content?.trim();
-  if (!result) throw new Error('Empty Groq response');
-  return result;
+  // Convert to base64
+  const base64Audio = Buffer.from(res.data).toString('base64');
+  return base64Audio;
 };
 
 // POST /api/emotion/rephrase
@@ -53,24 +97,34 @@ router.post('/rephrase', async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Invalid emotion' });
     }
 
-    // Seedha translated text ko emotion mein rewrite karo — same language mein
-    let voiceText = text.trim();
-    try {
-      voiceText = await callGroq(text.trim(), emotionKey);
-      console.log(`[Groq] ${emotionKey} rewrite OK`);
-    } catch (e) {
-      console.log(`[Groq] Failed: ${e.message} — using original text`);
-      voiceText = text.trim();
+    const config = EMOTION_VOICE_CONFIG[emotionKey];
+
+    // Step 1: Groq se emotionally rewrite karo
+    const rephrasedText = await rewriteWithGroq(text.trim(), config.groq_prompt);
+
+    // Step 2: ElevenLabs se emotional audio generate karo
+    let audioBase64 = null;
+    let useElevenLabs = false;
+
+    if (ELEVENLABS_API_KEY) {
+      try {
+        audioBase64 = await generateElevenLabsAudio(rephrasedText, config.voice_id, config.voice_settings);
+        useElevenLabs = true;
+        console.log(`[ElevenLabs] ${emotionKey} audio generated OK`);
+      } catch (e) {
+        console.log(`[ElevenLabs] Failed: ${e.message} — falling back to TTS`);
+      }
     }
 
-    const config = EMOTION_CONFIG[emotionKey];
-    const emojis = { love: '❤️', sad: '😢', angry: '😡', happy: '😄' };
+    const emojis = { love: '\u2764\uFE0F', sad: '\uD83D\uDE22', angry: '\uD83D\uDE21', happy: '\uD83D\uDE04' };
 
     return res.json({
       success: true,
-      voiceText,
-      ttsRate: config.rate,
-      ttsPitch: config.pitch,
+      voiceText: rephrasedText,
+      audioBase64,           // ElevenLabs audio (base64 mp3)
+      useElevenLabs,
+      ttsRate: config.ttsRate,
+      ttsPitch: config.ttsPitch,
       emotion: emotionKey,
       emoji: emojis[emotionKey],
     });

@@ -1,10 +1,21 @@
 const express = require('express');
 const axios = require('axios');
+const { translate } = require('@vitalets/google-translate-api');
 const router = express.Router();
 const History = require('../models/History');
 
 const LANGBLY_KEY = process.env.LANGBLY_API_KEY;
 const LANGBLY_URL = 'https://api.langbly.com/language/translate/v2';
+
+// Detect language using Google
+const detectLanguage = async (text) => {
+  try {
+    const res = await translate(text.slice(0, 100), { to: 'en' });
+    return res.raw?.src || null;
+  } catch (e) {
+    return null;
+  }
+};
 
 // Langbly Translation API
 const translateWithLangbly = async (text, sourceLang, targetLang) => {
@@ -51,6 +62,19 @@ router.post('/', async (req, res, next) => {
 
     if (!text?.trim()) return res.status(400).json({ success: false, error: 'Text is required' });
     if (!targetLang) return res.status(400).json({ success: false, error: 'Target language is required' });
+
+    // Agar source language manually select ki hai (auto nahi) toh validate karo
+    if (sourceLang && sourceLang !== 'auto') {
+      const detectedLangCode = await detectLanguage(text.trim());
+      if (detectedLangCode && detectedLangCode !== sourceLang) {
+        return res.status(400).json({
+          success: false,
+          error: `Language mismatch! You selected "${sourceLang}" but the text appears to be in "${detectedLangCode}". Please select the correct source language or use "Auto Detect".`,
+          detectedLang: detectedLangCode,
+          selectedLang: sourceLang,
+        });
+      }
+    }
 
     let translatedText = '';
     let detectedLang = sourceLang || 'auto';

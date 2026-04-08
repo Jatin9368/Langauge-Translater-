@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import Tts from 'react-native-tts';
 import { useTheme } from '../ThemeContext';
@@ -16,6 +16,7 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
   const styles = makeStyles(theme);
   const [speakingEmotion, setSpeakingEmotion] = useState(null);
   const [loadingEmotion, setLoadingEmotion] = useState(null);
+  const soundRef = useRef(null);
 
   useEffect(() => {
     const f = Tts.addEventListener('tts-finish', () => setSpeakingEmotion(null));
@@ -24,6 +25,39 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
     return () => { f.remove(); c.remove(); e.remove(); };
   }, []);
 
+  const stopAll = async () => {
+    await Tts.stop();
+    if (soundRef.current) {
+      try { soundRef.current.stop(); soundRef.current.release(); } catch (e) {}
+      soundRef.current = null;
+    }
+    setSpeakingEmotion(null);
+  };
+
+  const playBase64Audio = async (base64Audio, emotionKey) => {
+    const RNFS = require('react-native-fs');
+    const Sound = require('react-native-sound');
+    Sound.setCategory('Playback');
+
+    const filePath = `${RNFS.CachesDirectoryPath}/emotion_${emotionKey}_${Date.now()}.mp3`;
+    await RNFS.writeFile(filePath, base64Audio, 'base64');
+
+    return new Promise((resolve, reject) => {
+      const sound = new Sound(filePath, '', (err) => {
+        if (err) { reject(err); return; }
+        soundRef.current = sound;
+        sound.play(() => {
+          sound.release();
+          soundRef.current = null;
+          setSpeakingEmotion(null);
+          // cleanup
+          RNFS.unlink(filePath).catch(() => {});
+          resolve();
+        });
+      });
+    });
+  };
+
   const handlePress = async (emotion) => {
     if (!text?.trim()) {
       Alert.alert('Translate first', 'Please translate some text first.');
@@ -31,15 +65,11 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
     }
 
     if (speakingEmotion === emotion.key) {
-      await Tts.stop();
-      setSpeakingEmotion(null);
+      await stopAll();
       return;
     }
 
-    if (speakingEmotion) {
-      await Tts.stop();
-      setSpeakingEmotion(null);
-    }
+    if (speakingEmotion) await stopAll();
 
     setLoadingEmotion(emotion.key);
 
@@ -50,17 +80,21 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
         targetLang: targetLang || 'en',
       });
 
-      const voiceText = result.voiceText || text.trim();
-      const rate = result.ttsRate || 0.5;
-      const pitch = result.ttsPitch || 1.0;
-
-      if (locale) await Tts.setDefaultLanguage(locale);
-      await Tts.setDefaultRate(rate);
-      await Tts.setDefaultPitch(pitch);
-
       setSpeakingEmotion(emotion.key);
-      Tts.speak(voiceText);
+
+      if (result.useElevenLabs && result.audioBase64) {
+        // ElevenLabs — human emotional voice
+        await playBase64Audio(result.audioBase64, emotion.key);
+      } else {
+        // TTS fallback
+        const voiceText = result.voiceText || text.trim();
+        if (locale) await Tts.setDefaultLanguage(locale);
+        await Tts.setDefaultRate(result.ttsRate || 0.5);
+        await Tts.setDefaultPitch(result.ttsPitch || 1.0);
+        Tts.speak(voiceText);
+      }
     } catch (err) {
+      setSpeakingEmotion(null);
       Alert.alert('Error', err.message || 'Could not play voice.');
     } finally {
       setLoadingEmotion(null);
@@ -72,7 +106,6 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
       {EMOTIONS.map((emotion) => {
         const isSpeaking = speakingEmotion === emotion.key;
         const isLoading = loadingEmotion === emotion.key;
-
         return (
           <TouchableOpacity
             key={emotion.key}
@@ -84,12 +117,11 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
             ]}
             onPress={() => handlePress(emotion)}
             disabled={disabled || !!loadingEmotion}
-            accessibilityRole="button"
           >
             {isLoading ? (
               <ActivityIndicator size="small" color={emotion.color} />
             ) : (
-              <Text style={styles.emoji}>{isSpeaking ? '\u23F9' : emotion.emoji}</Text>
+              <Text style={styles.emoji}>{isSpeaking ? '\u23F9\uFE0F' : emotion.emoji}</Text>
             )}
             <Text style={[styles.label, { color: isSpeaking ? '#fff' : emotion.color }]}>
               {isLoading ? '...' : isSpeaking ? 'Stop' : emotion.label}

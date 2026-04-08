@@ -78,7 +78,16 @@ const HomeScreen = () => {
       setOutputText(result.translatedText || '');
       if (result.detectedLang && sourceLang === 'auto') setDetectedLang(result.detectedLang);
     } catch (err) {
-      Alert.alert('Translation Error', err.message || 'Could not translate.');
+      const errMsg = err.message || 'Could not translate.';
+      if (errMsg.includes('Language mismatch') || errMsg.includes('mismatch')) {
+        Alert.alert(
+          'Wrong Language Selected',
+          'The text language does not match your selected source language.\n\nPlease use "Auto Detect" or select the correct language.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Translation Error', errMsg);
+      }
     } finally {
       setTranslating(false);
     }
