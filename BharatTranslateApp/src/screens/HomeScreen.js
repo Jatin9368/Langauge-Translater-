@@ -38,6 +38,7 @@ const HomeScreen = () => {
   const [emotionVoiceText, setEmotionVoiceText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [detectedLang, setDetectedLang] = useState(null);
+  const [langMismatch, setLangMismatch] = useState(false);
 
   const targetLangObj = getLanguageByCode(targetLang);
   const displayOutput = emotionText || outputText;
@@ -66,6 +67,7 @@ const HomeScreen = () => {
     setActiveEmotion(null);
     setEmotionText('');
     setEmotionVoiceText('');
+    setLangMismatch(false);
     try {
       const sourceLangObj = getLanguageByCode(sourceLang);
       const result = await translateText({
@@ -80,11 +82,7 @@ const HomeScreen = () => {
     } catch (err) {
       const errMsg = err.message || 'Could not translate.';
       if (errMsg.includes('Language mismatch') || errMsg.includes('mismatch')) {
-        Alert.alert(
-          'Wrong Language Selected',
-          'The text language does not match your selected source language.\n\nPlease use "Auto Detect" or select the correct language.',
-          [{ text: 'OK' }]
-        );
+        setLangMismatch(true);
       } else {
         Alert.alert('Translation Error', errMsg);
       }
@@ -152,7 +150,7 @@ const HomeScreen = () => {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.headerTitle}>BharatTranslate</Text>
+            <Text style={styles.headerTitle}>LexiFlow</Text>
             <Text style={styles.headerSub}>50+ Languages</Text>
           </View>
           <TouchableOpacity onPress={toggleTheme} style={styles.themeBtn}>
@@ -236,6 +234,19 @@ const HomeScreen = () => {
             <Text style={styles.translateBtnText}>🌐  Translate</Text>
           )}
         </TouchableOpacity>
+
+        {/* Language Mismatch Banner */}
+        {langMismatch && (
+          <TouchableOpacity
+            style={styles.mismatchBanner}
+            onPress={() => { setSourceLang('auto'); setLangMismatch(false); }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.mismatchIcon}>⚠️</Text>
+            <Text style={styles.mismatchText}>Wrong language selected. Tap to use Auto Detect.</Text>
+            <Text style={styles.mismatchClose}>✕</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Output Box */}
         {(outputText || translating) ? (
@@ -414,6 +425,19 @@ const makeStyles = (theme) =>
       fontSize: 12, fontWeight: '700', color: theme.colors.textSecondary,
       textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8,
     },
+    // Language mismatch banner
+    mismatchBanner: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      backgroundColor: theme.dark ? '#2D1A00' : '#FFF3CD',
+      borderRadius: 10, padding: 10, marginBottom: 10,
+      borderWidth: 1, borderColor: '#F59E0B',
+    },
+    mismatchIcon: { fontSize: 14 },
+    mismatchText: {
+      flex: 1, fontSize: 12, color: theme.dark ? '#FCD34D' : '#92400E',
+      fontWeight: '500',
+    },
+    mismatchClose: { fontSize: 13, color: theme.dark ? '#FCD34D' : '#92400E', fontWeight: '700' },
   });
 
 export default HomeScreen;

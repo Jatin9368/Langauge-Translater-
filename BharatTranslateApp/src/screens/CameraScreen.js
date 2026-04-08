@@ -27,8 +27,8 @@ const CameraScreen = () => {
 
   const CROP_OPTIONS = {
     cropping: true,
-    freeStyleCropEnabled: true,       // freely koi bhi shape mein crop karo
-    cropperRotateButtonsHidden: false, // rotate button dikhao
+    freeStyleCropEnabled: true,
+    cropperRotateButtonsHidden: false,
     cropperToolbarTitle: 'Select Text Area',
     cropperActiveWidgetColor: '#4F46E5',
     cropperStatusBarColor: '#3730A3',
@@ -38,13 +38,15 @@ const CameraScreen = () => {
     cropperCancelText: 'Cancel',
     includeBase64: false,
     compressImageQuality: 0.95,
-    showCropGuidelines: true,         // grid lines dikhao
-    showCropFrame: true,              // crop frame dikhao
-    hideBottomControls: false,        // bottom controls dikhao
-    enableRotationGesture: true,      // pinch to rotate
+    showCropGuidelines: true,
+    showCropFrame: true,
+    hideBottomControls: false,
+    enableRotationGesture: true,
   };
 
-  const processImage = async (uri) => {
+  const processImage = async (uri, langOverride) => {
+    const lang = langOverride || targetLang;
+    const langObj = getLanguageByCode(lang);
     setProcessing(true);
     setStep('scanning');
     setDetectedText('');
@@ -71,8 +73,8 @@ const CameraScreen = () => {
       const res = await translateText({
         text: extracted,
         sourceLang: 'auto',
-        targetLang,
-        targetLangName: targetLangObj?.name || targetLang,
+        targetLang: lang,
+        targetLangName: langObj?.name || lang,
         saveHistory: true,
       });
 
@@ -83,6 +85,32 @@ const CameraScreen = () => {
     } finally {
       setProcessing(false);
       setStep('');
+    }
+  };
+
+  // Jab language change ho aur image already hai toh retranslate karo
+  const handleLangChange = async (newLang) => {
+    setTargetLang(newLang);
+    if (detectedText.trim()) {
+      const langObj = getLanguageByCode(newLang);
+      setTranslatedText('');
+      setProcessing(true);
+      setStep('translating');
+      try {
+        const res = await translateText({
+          text: detectedText,
+          sourceLang: 'auto',
+          targetLang: newLang,
+          targetLangName: langObj?.name || newLang,
+          saveHistory: false,
+        });
+        setTranslatedText(res.translatedText || '');
+      } catch (err) {
+        Alert.alert('Error', err.message || 'Could not retranslate.');
+      } finally {
+        setProcessing(false);
+        setStep('');
+      }
     }
   };
 
@@ -149,8 +177,8 @@ const CameraScreen = () => {
     >
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Bharat Lens</Text>
-        <Text style={styles.headerSub}>Take a photo, crop the text, get translation</Text>
+        <Text style={styles.headerTitle}>VisionLex</Text>
+        <Text style={styles.headerSub}>Scan text from any image and translate</Text>
       </View>
 
       {/* Language Selector */}
@@ -160,40 +188,36 @@ const CameraScreen = () => {
           <LanguagePicker
             languages={TARGET_LANGUAGES}
             selectedCode={targetLang}
-            onSelect={(code) => { setTargetLang(code); setTranslatedText(''); }}
+            onSelect={handleLangChange}
             label="Target Language"
           />
         </View>
       </View>
 
       {/* Action Buttons */}
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.cameraBtn]}
-          onPress={handleCamera}
-          disabled={processing}
-        >
-          <Text style={styles.actionIcon}>📷</Text>
-          <Text style={styles.actionLabel}>Camera</Text>
-          <Text style={styles.actionSub}>Photo + Crop</Text>
-        </TouchableOpacity>
+      <View style={styles.actionWrapper}>
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.cameraBtn]}
+            onPress={handleCamera}
+            disabled={processing}
+          >
+            <Text style={styles.actionIcon}>📷</Text>
+            <Text style={styles.actionLabel}>Camera</Text>
+            <Text style={styles.actionSub}>Photo + Crop</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.galleryBtn]}
-          onPress={handleGallery}
-          disabled={processing}
-        >
-          <Text style={styles.actionIcon}>🖼️</Text>
-          <Text style={styles.actionLabel}>Gallery</Text>
-          <Text style={styles.actionSub}>Image + Crop</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.galleryBtn]}
+            onPress={handleGallery}
+            disabled={processing}
+          >
+            <Text style={styles.actionIcon}>🖼️</Text>
+            <Text style={styles.actionLabel}>Gallery</Text>
+            <Text style={styles.actionSub}>Image + Crop</Text>
+          </TouchableOpacity>
+        </View>
 
-      {/* Info */}
-      <View style={styles.infoCard}>
-        <Text style={styles.infoText}>
-          ✂️ After taking a photo, crop only the area with text — it will be translated automatically
-        </Text>
       </View>
 
       {/* Processing */}
@@ -267,7 +291,8 @@ const makeStyles = (theme) =>
     langLabel: { fontSize: 14, color: theme.colors.textSecondary, fontWeight: '500' },
     langPickerWrap: { flex: 1 },
 
-    actionRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+    actionWrapper: { position: 'relative', marginBottom: 12 },
+    actionRow: { flexDirection: 'row', gap: 12 },
     actionBtn: {
       flex: 1, borderRadius: 16, paddingVertical: 22,
       alignItems: 'center', justifyContent: 'center', borderWidth: 1,
@@ -281,6 +306,7 @@ const makeStyles = (theme) =>
     actionIcon: { fontSize: 34, marginBottom: 6 },
     actionLabel: { fontSize: 15, fontWeight: '700', color: theme.colors.text },
     actionSub: { fontSize: 12, color: theme.colors.textSecondary, marginTop: 2 },
+
 
     infoCard: {
       backgroundColor: theme.colors.primaryLight, borderRadius: 12,
@@ -345,3 +371,4 @@ const makeStyles = (theme) =>
     resetBtnText: { fontSize: 15, color: theme.colors.primary, fontWeight: '600' },  });
 
 export default CameraScreen;
+
