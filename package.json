@@ -1,0 +1,12 @@
+{
+  "name": "samvaadini-bharat",
+  "version": "1.0.0",
+  "description": "Samvaadini Bharat - AI Translation App",
+  "scripts": {
+    "start": "start.bat",
+    "backend": "cd backend && npm run dev",
+    "metro": "cd BharatTranslateApp && npx react-native start",
+    "android": "cd BharatTranslateApp && npx react-native run-android",
+    "ports": "adb reverse tcp:5000 tcp:5000 && adb reverse tcp:8081 tcp:8081"
+  }
+}
