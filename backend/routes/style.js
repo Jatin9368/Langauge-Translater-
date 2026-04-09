@@ -1,165 +1,151 @@
-const express = require('express');
+﻿const express = require('express');
 const axios = require('axios');
+const { translate } = require('@vitalets/google-translate-api');
 const router = express.Router();
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
-const SYSTEM_PROMPT = `You are a native multilingual communication style expert. Convert the given sentence into 3 styles with exactly 2 variations each.
+const callGroq = async (text, langName) => {
+  const prompt = `Given sentence ko 3 styles me rewrite karo: Gen-Z, Funny, aur Formal.
 
-ABSOLUTE RULES:
-1. Convert ONLY the given sentence — do not add new topics or answer it
-2. Keep the EXACT same meaning in all variations
-3. ALL 6 outputs must be written ONLY in the target language specified — zero mixing
-4. Sound like a native speaker of that language, not a translation
-5. Exactly 2 variations per style — no more, no less
+Rules:
+- Meaning bilkul same rehna chahiye
+- Language same rehni chahiye: ${langName}
+- Natural, fluent aur human-like hona chahiye
+- Koi abusive ya offensive words use na ho
+- Literal translation avoid karo
+- Har style ke liye exactly 2 variations do
 
-STYLE GUIDELINES (adapt to the target language's culture):
+Output format:
+Gen-Z 1: <sentence>
+Gen-Z 2: <sentence>
+Funny 1: <sentence>
+Funny 2: <sentence>
+Formal 1: <sentence>
+Formal 2: <sentence>
 
-[Gen-Z Style]
-- Use that language's actual youth slang and casual expressions
-- Hindi: yaar, bhai, vibe, scene, no cap, fr fr, lowkey, slay
-- Tamil: da, di, machan, scene, vibe
-- Telugu: bro, yaar, scene, vibe
-- Bengali: bhai, yaar, vibe
-- English: bestie, no cap, fr fr, lowkey, slay, it's giving
-- Arabic/Urdu/Persian: use local youth expressions
-- Sound like a real 18-year-old texting in that language
+Sentence: ${text}`;
 
-[Funny Style]
-- Use that language's humor style and cultural references
-- Hindi: chai, mummy, sasural, WiFi references, dramatic exaggeration 😂🤣
-- Other languages: use their own cultural humor references
-- Genuinely funny, not forced
-
-[Formal Style]
-- Polite, professional tone natural to that language
-- Use appropriate honorifics for that language
-
-Output format EXACTLY (no extra text before or after):
-[Gen-Z Style]
-👉 Variation 1
-👉 Variation 2
-[Funny Style]
-👉 Variation 1
-👉 Variation 2
-[Formal Style]
-👉 Variation 1
-👉 Variation 2`;
-
-const callGroq = async (text) => {
   const res = await axios.post(
     'https://api.groq.com/openai/v1/chat/completions',
     {
-      model: 'llama-3.1-8b-instant',
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: text },
-      ],
-      max_tokens: 600,
-      temperature: 0.85,
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 400,
+      temperature: 0.5,
     },
     {
       headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-      timeout: 20000,
+      timeout: 25000,
     }
   );
   return res.data?.choices?.[0]?.message?.content?.trim() || '';
 };
 
 const parseStyles = (raw) => {
-  const result = { gen_z: [], formal: [], funny: [] };
+  const result = { gen_z: [], funny: [], formal: [] };
 
-  // Split by style headers
-  const sections = raw.split(/\[(?:Gen-Z|Funny|Formal)[^\]]*\]/i);
-  const headers = raw.match(/\[(?:Gen-Z|Funny|Formal)[^\]]*\]/gi) || [];
+  const extract = (label) => {
+    const matches = [];
+    const r1 = new RegExp(`${label} 1:\\s*(.+)`, 'i');
+    const r2 = new RegExp(`${label} 2:\\s*(.+)`, 'i');
+    const m1 = raw.match(r1);
+    const m2 = raw.match(r2);
+    if (m1) matches.push(m1[1].trim());
+    if (m2) matches.push(m2[1].trim());
+    return matches;
+  };
 
-  headers.forEach((header, idx) => {
-    const content = sections[idx + 1] || '';
-    const options = content.match(/👉\s*(.+)/g)?.map(o => o.replace(/^👉\s*/, '').trim()) || [];
-    const h = header.toLowerCase();
-    if (h.includes('gen-z') || h.includes('genz')) result.gen_z = options;
-    else if (h.includes('funny')) result.funny = options;
-    else if (h.includes('formal')) result.formal = options;
-  });
-
+  result.gen_z = extract('Gen-Z');
+  result.funny = extract('Funny');
+  result.formal = extract('Formal');
   return result;
 };
 
-// POST /api/style/rephrase
+const langNames = {
+  hi: 'Hindi', en: 'English', bn: 'Bengali', ta: 'Tamil', te: 'Telugu',
+  mr: 'Marathi', gu: 'Gujarati', kn: 'Kannada', ml: 'Malayalam', pa: 'Punjabi',
+  ur: 'Urdu', fr: 'French', de: 'German', es: 'Spanish', ja: 'Japanese',
+  'zh-CN': 'Chinese', ar: 'Arabic', ru: 'Russian', ko: 'Korean', pt: 'Portuguese',
+  it: 'Italian', tr: 'Turkish', nl: 'Dutch', pl: 'Polish', th: 'Thai',
+  vi: 'Vietnamese', id: 'Indonesian', ms: 'Malay', fa: 'Persian', sw: 'Swahili',
+};
+
 router.post('/rephrase', async (req, res, next) => {
   try {
     const { text, targetLang } = req.body;
     if (!text?.trim()) return res.status(400).json({ success: false, error: 'Text is required' });
 
-    // Language name for explicit instruction
-    const langNames = {
-      hi: 'Hindi (Devanagari script)', en: 'English', bn: 'Bengali (Bengali script)',
-      ta: 'Tamil (Tamil script)', te: 'Telugu (Telugu script)', mr: 'Marathi (Devanagari script)',
-      gu: 'Gujarati (Gujarati script)', kn: 'Kannada (Kannada script)', ml: 'Malayalam (Malayalam script)',
-      pa: 'Punjabi (Gurmukhi script)', ur: 'Urdu (Nastaliq script)', fr: 'French', de: 'German',
-      es: 'Spanish', ja: 'Japanese', 'zh-CN': 'Chinese (Simplified)', ar: 'Arabic', ru: 'Russian',
-      ko: 'Korean', pt: 'Portuguese', it: 'Italian', tr: 'Turkish', nl: 'Dutch',
-      pl: 'Polish', th: 'Thai', vi: 'Vietnamese', id: 'Indonesian', ms: 'Malay',
-      fa: 'Persian (Farsi)', sw: 'Swahili', ne: 'Nepali', si: 'Sinhala',
-    };
-    const langName = langNames[targetLang] || 'the same language as the input';
+    const langName = langNames[targetLang] || 'the same language as input';
 
-    const userPrompt = `Target Language: ${langName}
-Sentence to convert: "${text.trim()}"
+    // Convert to English for Groq (more reliable)
+    let inputText = text.trim();
+    let needsTranslation = targetLang !== 'en';
 
-Write ALL 6 outputs ONLY in ${langName}. Use native expressions, slang and cultural references of ${langName} speakers. Do NOT translate to any other language.`;
+    if (needsTranslation) {
+      try {
+        // Use Langbly for Hindi→English conversion
+        const LANGBLY_KEY = process.env.LANGBLY_API_KEY;
+        const toEnRes = await axios.post(
+          'https://api.langbly.com/language/translate/v2',
+          null,
+          { params: { q: text.trim(), target: 'en', source: targetLang, key: LANGBLY_KEY }, timeout: 8000 }
+        );
+        const enText = toEnRes.data?.data?.translations?.[0]?.translatedText;
+        if (enText) inputText = enText;
+        else needsTranslation = false;
+      } catch (e) {
+        needsTranslation = false;
+        inputText = text.trim();
+      }
+    }
 
     let rawOutput = '';
     try {
-      const res2 = await axios.post(
-        'https://api.groq.com/openai/v1/chat/completions',
-        {
-          model: 'llama-3.1-8b-instant',
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: userPrompt },
-          ],
-          max_tokens: 600,
-          temperature: 0.85,
-        },
-        {
-          headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-          timeout: 20000,
-        }
-      );
-      rawOutput = res2.data?.choices?.[0]?.message?.content?.trim() || '';
+      rawOutput = await callGroq(inputText, 'English');
+      console.log('[Style] OK, length:', rawOutput.length);
     } catch (e) {
-      console.log('Groq style failed:', e.message);
+      console.error('[Style] Groq error:', e.message);
       return res.status(503).json({ success: false, error: 'Style generation failed.' });
     }
 
     const parsed = parseStyles(rawOutput);
 
-    // Build styles object for frontend
-    const styles = {
-      gen_z: {
-        emoji: '\uD83D\uDE0E',
-        label: 'Gen-Z',
-        options: parsed.gen_z.slice(0, 2),
-        text: parsed.gen_z[0] || text,
-      },
-      funny: {
-        emoji: '\uD83D\uDE02',
-        label: 'Funny',
-        options: parsed.funny.slice(0, 2),
-        text: parsed.funny[0] || text,
-      },
-      formal: {
-        emoji: '\uD83D\uDC54',
-        label: 'Formal',
-        options: parsed.formal.slice(0, 2),
-        text: parsed.formal[0] || text,
-      },
+    // Translate back to target language using Langbly
+    const LANGBLY_KEY = process.env.LANGBLY_API_KEY;
+    const translateToTarget = async (arr) => {
+      if (!needsTranslation || !arr.length) return arr;
+      const results = [];
+      for (const opt of arr) {
+        try {
+          const r = await axios.post(
+            'https://api.langbly.com/language/translate/v2',
+            null,
+            { params: { q: opt, target: targetLang, source: 'en', key: LANGBLY_KEY }, timeout: 8000 }
+          );
+          const t = r.data?.data?.translations?.[0]?.translatedText;
+          results.push(t || opt);
+        } catch (e) {
+          results.push(opt);
+        }
+      }
+      return results;
     };
 
-    return res.json({ success: true, styles, rawOutput });
+    const [gen_zOpts, funnyOpts, formalOpts] = await Promise.all([
+      translateToTarget(parsed.gen_z),
+      translateToTarget(parsed.funny),
+      translateToTarget(parsed.formal),
+    ]);
+
+    const styles = {
+      gen_z:  { emoji: '\uD83D\uDE0E', label: 'Gen-Z',  options: gen_zOpts,  text: gen_zOpts[0] || text },
+      funny:  { emoji: '\uD83D\uDE02', label: 'Funny',   options: funnyOpts,  text: funnyOpts[0] || text },
+      formal: { emoji: '\uD83D\uDC54', label: 'Formal',  options: formalOpts, text: formalOpts[0] || text },
+    };
+
+    return res.json({ success: true, styles });
   } catch (err) {
-    console.error('Style error:', err.message);
     next(err);
   }
 });
