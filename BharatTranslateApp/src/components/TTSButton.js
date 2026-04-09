@@ -77,7 +77,7 @@ const TTSButton = ({ text, locale, disabled, emotion = 'normal' }) => {
       accessibilityLabel="Listen to translation"
     >
       <Text style={styles.emoji}>
-        {speaking ? '\u23F9\uFE0F' : '\uD83D\uDD0A'}
+        {speaking ? '\u25A0' : '\u25B6'}
       </Text>
     </TouchableOpacity>
   );
@@ -86,12 +86,14 @@ const TTSButton = ({ text, locale, disabled, emotion = 'normal' }) => {
 const makeStyles = (theme) =>
   StyleSheet.create({
     btn: {
-      width: 36, height: 36, borderRadius: 18,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 10,
       alignItems: 'center', justifyContent: 'center',
       borderWidth: 1.5,
     },
     btnDisabled: { opacity: 0.35 },
-    emoji: { fontSize: 17 },
+    emoji: { fontSize: 16, fontWeight: '900', color: theme.colors.text },
   });
 
 export default TTSButton;

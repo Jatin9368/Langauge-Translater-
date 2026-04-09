@@ -7,6 +7,95 @@ const History = require('../models/History');
 const LANGBLY_KEY = process.env.LANGBLY_API_KEY;
 const LANGBLY_URL = 'https://api.langbly.com/language/translate/v2';
 
+// Script-based language detection — fast, no API needed
+const detectScriptMismatch = (text, selectedLang) => {
+  if (!text || !selectedLang || selectedLang === 'auto') return null;
+
+  const scripts = {
+    // Devanagari — Hindi, Marathi, Nepali, Sanskrit (same script, allow all)
+    devanagari: /[\u0900-\u097F]/,
+    // Bengali
+    bengali: /[\u0980-\u09FF]/,
+    // Tamil
+    tamil: /[\u0B80-\u0BFF]/,
+    // Telugu
+    telugu: /[\u0C00-\u0C7F]/,
+    // Kannada
+    kannada: /[\u0C80-\u0CFF]/,
+    // Malayalam
+    malayalam: /[\u0D00-\u0D7F]/,
+    // Gujarati
+    gujarati: /[\u0A80-\u0AFF]/,
+    // Punjabi/Gurmukhi
+    gurmukhi: /[\u0A00-\u0A7F]/,
+    // Arabic/Urdu/Persian
+    arabic: /[\u0600-\u06FF]/,
+    // Latin (English, French, German, Spanish, etc.)
+    latin: /[a-zA-Z]/,
+    // Chinese
+    chinese: /[\u4E00-\u9FFF]/,
+    // Japanese
+    japanese: /[\u3040-\u30FF\u4E00-\u9FFF]/,
+    // Korean
+    korean: /[\uAC00-\uD7AF]/,
+    // Cyrillic (Russian, Ukrainian)
+    cyrillic: /[\u0400-\u04FF]/,
+    // Thai
+    thai: /[\u0E00-\u0E7F]/,
+  };
+
+  // Map language to expected script
+  const langScript = {
+    hi: 'devanagari', mr: 'devanagari', ne: 'devanagari',
+    bn: 'bengali', as: 'bengali',
+    ta: 'tamil',
+    te: 'telugu',
+    kn: 'kannada',
+    ml: 'malayalam',
+    gu: 'gujarati',
+    pa: 'gurmukhi',
+    ur: 'arabic', ar: 'arabic', fa: 'arabic',
+    en: 'latin', fr: 'latin', de: 'latin', es: 'latin',
+    it: 'latin', pt: 'latin', nl: 'latin', pl: 'latin',
+    tr: 'latin', id: 'latin', ms: 'latin', vi: 'latin', sw: 'latin',
+    'zh-CN': 'chinese',
+    ja: 'japanese',
+    ko: 'korean',
+    ru: 'cyrillic', uk: 'cyrillic',
+    th: 'thai',
+  };
+
+  const expectedScript = langScript[selectedLang];
+  if (!expectedScript) return null;
+
+  // Check what script the text actually uses
+  const textScripts = Object.entries(scripts).filter(([, regex]) => regex.test(text));
+  if (!textScripts.length) return null;
+
+  const dominantScript = textScripts[0][0];
+
+  // If text script doesn't match expected script — mismatch!
+  if (dominantScript !== expectedScript) {
+    return {
+      mismatch: true,
+      textScript: dominantScript,
+      expectedScript,
+    };
+  }
+  return null;
+};
+
+// Language name map for user-friendly messages
+const LANG_NAMES = {
+  hi: 'Hindi', en: 'English', bn: 'Bengali', ta: 'Tamil', te: 'Telugu',
+  mr: 'Marathi', gu: 'Gujarati', kn: 'Kannada', ml: 'Malayalam', pa: 'Punjabi',
+  ur: 'Urdu', fr: 'French', de: 'German', es: 'Spanish', ja: 'Japanese',
+  'zh-CN': 'Chinese', ar: 'Arabic', ru: 'Russian', ko: 'Korean', pt: 'Portuguese',
+  it: 'Italian', tr: 'Turkish', nl: 'Dutch', pl: 'Polish', th: 'Thai',
+  vi: 'Vietnamese', id: 'Indonesian', ms: 'Malay', fa: 'Persian', sw: 'Swahili',
+  ne: 'Nepali', si: 'Sinhala', sd: 'Sindhi', as: 'Assamese',
+};
+
 // Detect language using Google
 const detectLanguage = async (text) => {
   try {
@@ -62,6 +151,20 @@ router.post('/', async (req, res, next) => {
 
     if (!text?.trim()) return res.status(400).json({ success: false, error: 'Text is required' });
     if (!targetLang) return res.status(400).json({ success: false, error: 'Target language is required' });
+
+    // Language validation — script-based, fast, no API needed
+    if (sourceLang && sourceLang !== 'auto') {
+      const mismatch = detectScriptMismatch(text.trim(), sourceLang);
+      if (mismatch) {
+        const selectedName = LANG_NAMES[sourceLang] || sourceLang;
+        return res.status(400).json({
+          success: false,
+          error: `Please select the correct language. You selected "${selectedName}" but the text appears to be in a different language.`,
+          selectedLang: sourceLang,
+          mismatch: true,
+        });
+      }
+    }
 
     // Agar source language manually select ki hai (auto nahi) toh validate karo
     if (sourceLang && sourceLang !== 'auto') {
