@@ -1,8 +1,11 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import Tts from 'react-native-tts';
+import Video from 'react-native-video';
 import { useTheme } from '../ThemeContext';
 import { rephraseEmotion } from '../api';
+
+const BASE_URL = 'http://localhost:5000';
 
 const EMOTIONS = [
   { key: 'love',  label: 'Love',  emoji: '\u2764\uFE0F', color: '#E91E63' },
@@ -16,6 +19,7 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
   const styles = makeStyles(theme);
   const [speakingEmotion, setSpeakingEmotion] = useState(null);
   const [loadingEmotion, setLoadingEmotion] = useState(null);
+  const [currentAudioUrl, setCurrentAudioUrl] = useState(null);
 
   useEffect(() => {
     const f = Tts.addEventListener('tts-finish', () => setSpeakingEmotion(null));
@@ -24,6 +28,12 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
     return () => { f.remove(); c.remove(); e.remove(); };
   }, []);
 
+  const stopAll = async () => {
+    setCurrentAudioUrl(null);
+    try { await Tts.stop(); } catch (e) {}
+    setSpeakingEmotion(null);
+  };
+
   const handlePress = async (emotion) => {
     if (!text?.trim()) {
       Alert.alert('Translate first', 'Please translate some text first.');
@@ -31,15 +41,11 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
     }
 
     if (speakingEmotion === emotion.key) {
-      await Tts.stop();
-      setSpeakingEmotion(null);
+      await stopAll();
       return;
     }
 
-    if (speakingEmotion) {
-      await Tts.stop();
-      setSpeakingEmotion(null);
-    }
+    if (speakingEmotion) await stopAll();
 
     setLoadingEmotion(emotion.key);
 
@@ -50,16 +56,16 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
         targetLang: targetLang || 'en',
       });
 
-      const voiceText = result.voiceText || text.trim();
-      const rate = result.ttsRate || 0.5;
-      const pitch = result.ttsPitch || 1.0;
-
-      if (locale) await Tts.setDefaultLanguage(locale);
-      await Tts.setDefaultRate(rate);
-      await Tts.setDefaultPitch(pitch);
-
       setSpeakingEmotion(emotion.key);
-      Tts.speak(voiceText);
+
+      if (result.useElevenLabs && result.audioUrl) {
+        setCurrentAudioUrl(`${BASE_URL}${result.audioUrl}`);
+      } else {
+        if (locale) await Tts.setDefaultLanguage(locale);
+        await Tts.setDefaultRate(result.ttsRate || 0.5);
+        await Tts.setDefaultPitch(result.ttsPitch || 1.0);
+        Tts.speak(text.trim());
+      }
     } catch (err) {
       setSpeakingEmotion(null);
       Alert.alert('Error', err.message || 'Could not play voice.');
@@ -69,33 +75,47 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
   };
 
   return (
-    <View style={styles.row}>
-      {EMOTIONS.map((emotion) => {
-        const isSpeaking = speakingEmotion === emotion.key;
-        const isLoading = loadingEmotion === emotion.key;
-        return (
-          <TouchableOpacity
-            key={emotion.key}
-            style={[
-              styles.btn,
-              { borderColor: emotion.color },
-              isSpeaking && { backgroundColor: emotion.color },
-              disabled && styles.btnDisabled,
-            ]}
-            onPress={() => handlePress(emotion)}
-            disabled={disabled || !!loadingEmotion}
-          >
-            {isLoading ? (
-              <ActivityIndicator size="small" color={emotion.color} />
-            ) : (
-              <Text style={styles.emoji}>{isSpeaking ? '\u23F9\uFE0F' : emotion.emoji}</Text>
-            )}
-            <Text style={[styles.label, { color: isSpeaking ? '#fff' : emotion.color }]}>
-              {isLoading ? '...' : isSpeaking ? 'Stop' : emotion.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+    <View>
+      {/* Hidden audio player for ElevenLabs */}
+      {currentAudioUrl && (
+        <Video
+          source={{ uri: currentAudioUrl }}
+          audioOnly
+          paused={false}
+          onEnd={() => { setCurrentAudioUrl(null); setSpeakingEmotion(null); }}
+          onError={() => { setCurrentAudioUrl(null); setSpeakingEmotion(null); }}
+          style={{ width: 0, height: 0, position: 'absolute' }}
+        />
+      )}
+
+      <View style={styles.row}>
+        {EMOTIONS.map((emotion) => {
+          const isSpeaking = speakingEmotion === emotion.key;
+          const isLoading = loadingEmotion === emotion.key;
+          return (
+            <TouchableOpacity
+              key={emotion.key}
+              style={[
+                styles.btn,
+                { borderColor: emotion.color },
+                isSpeaking && { backgroundColor: emotion.color },
+                disabled && styles.btnDisabled,
+              ]}
+              onPress={() => handlePress(emotion)}
+              disabled={disabled || !!loadingEmotion}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color={emotion.color} />
+              ) : (
+                <Text style={styles.emoji}>{isSpeaking ? '\u23F9\uFE0F' : emotion.emoji}</Text>
+              )}
+              <Text style={[styles.label, { color: isSpeaking ? '#fff' : emotion.color }]}>
+                {isLoading ? '...' : isSpeaking ? 'Stop' : emotion.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
   );
 };

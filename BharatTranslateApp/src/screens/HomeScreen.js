@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Alert, Share, Clipboard, ActivityIndicator,
+  StyleSheet, Alert, Share, Clipboard, ActivityIndicator, Image,
   KeyboardAvoidingView, Platform, StatusBar, Animated,
 } from 'react-native';
 import Voice from '@react-native-voice/voice';
@@ -85,11 +85,7 @@ const HomeScreen = () => {
       Animated.spring(outputAnim, { toValue: 1, useNativeDriver: true, tension: 100, friction: 8 }).start();
     } catch (err) {
       const msg = err.message || '';
-      if (msg.includes('mismatch') || msg.includes('correct language') || msg.includes('Please select')) {
-        setLangMismatch(true);
-      } else {
-        Alert.alert('Error', msg || 'Translation failed.');
-      }
+      Alert.alert('Error', msg || 'Translation failed.');
     } finally {
       setTranslating(false);
     }
@@ -124,18 +120,7 @@ const HomeScreen = () => {
         {/* â”€â”€ Header â”€â”€ */}
         <View style={s.header}>
           <View style={s.logoRow}>
-            <View style={s.logoBox}>
-              <Text style={s.logoLetter}>A</Text>
-              <View style={s.logoBadge}>
-                <Text style={s.logoBadgeA}>A</Text>
-                <Text style={s.logoBadgeArrow}>â‡„</Text>
-                <Text style={s.logoBadgeAh}>à¤…</Text>
-              </View>
-            </View>
-            <View>
-              <Text style={s.appName}>Anuvadani</Text>
-              <Text style={s.appSub}>Vaani</Text>
-            </View>
+            <Image source={require('../assets/logo.png')} style={s.logoImage} resizeMode="contain" />
           </View>
           <TouchableOpacity onPress={toggleTheme} style={s.themeBtn}>
             <Text style={s.themeBtnText}>{isDark ? '\u2600\uFE0F' : '\uD83C\uDF19'}</Text>
@@ -255,8 +240,9 @@ const makeStyles = (theme, isDark) => StyleSheet.create({
   content: { padding: 16, paddingBottom: 48 },
 
   // Header
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22, paddingTop: 6 },
-  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingTop: 6, paddingHorizontal: 4, backgroundColor: isDark ? '#0F0F1A' : '#FFFFFF', borderRadius: 12 },
+  logoRow: { flex: 1, alignItems: 'flex-end' },
+  logoImage: { width: '90%', height: 70, backgroundColor: 'transparent' },
   logoBox: {
     width: 52, height: 52, borderRadius: 16,
     backgroundColor: '#4F46E5',
@@ -275,8 +261,9 @@ const makeStyles = (theme, isDark) => StyleSheet.create({
   logoBadgeA: { fontSize: 8, fontWeight: '900', color: '#4F46E5' },
   logoBadgeArrow: { fontSize: 8, color: '#06B6D4', fontWeight: '900' },
   logoBadgeAh: { fontSize: 8, fontWeight: '900', color: '#0EA5E9' },
-  appName: { fontSize: 22, fontWeight: '900', color: '#4F46E5', letterSpacing: -0.5 },
-  appSub: { fontSize: 18, fontWeight: '800', color: '#0EA5E9', letterSpacing: -0.3, marginTop: -3 },
+  appTagAbove: { fontSize: 10, color: '#6B7280', letterSpacing: 0.3, marginBottom: 1 },
+  appName: { fontSize: 20, fontWeight: '900', color: '#4F46E5', letterSpacing: -0.5 },
+  appTagBelow: { fontSize: 9, color: '#9CA3AF', letterSpacing: 0.2, marginTop: 1 },
   themeBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.surfaceVariant, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border },
   themeBtnText: { fontSize: 18 },
 
@@ -307,10 +294,6 @@ const makeStyles = (theme, isDark) => StyleSheet.create({
   translateBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   translateBtnTxt: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 0.3 },
 
-  // Mismatch
-  mismatchBanner: { backgroundColor: isDark ? '#2D1A00' : '#FFF7ED', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#EF4444' },
-  mismatchTxt: { fontSize: 13, color: isDark ? '#FCA5A5' : '#DC2626', fontWeight: '500', textAlign: 'center' },
-
   // Output
   outputCard: { backgroundColor: theme.colors.surface, borderRadius: 18, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
   outputHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
@@ -330,6 +313,12 @@ const makeStyles = (theme, isDark) => StyleSheet.create({
 });
 
 export default HomeScreen;
+
+
+
+
+
+
 
 
 

@@ -152,20 +152,6 @@ router.post('/', async (req, res, next) => {
     if (!text?.trim()) return res.status(400).json({ success: false, error: 'Text is required' });
     if (!targetLang) return res.status(400).json({ success: false, error: 'Target language is required' });
 
-    // Language validation — script-based, fast, no API needed
-    if (sourceLang && sourceLang !== 'auto') {
-      const mismatch = detectScriptMismatch(text.trim(), sourceLang);
-      if (mismatch) {
-        const selectedName = LANG_NAMES[sourceLang] || sourceLang;
-        return res.status(400).json({
-          success: false,
-          error: `Please select the correct language. You selected "${selectedName}" but the text appears to be in a different language.`,
-          selectedLang: sourceLang,
-          mismatch: true,
-        });
-      }
-    }
-
     // Agar source language manually select ki hai (auto nahi) toh validate karo
     if (sourceLang && sourceLang !== 'auto') {
       const detectedLangCode = await detectLanguage(text.trim());
