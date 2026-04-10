@@ -6,27 +6,47 @@ const router = express.Router();
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 
-// Female voice for Love & Happy — Male voice for Sad & Angry
+// Female voice for Love & Sad — Male voice for Happy & Angry
 const EMOTION_CONFIG = {
   love: {
-    voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah — soft female
-    voice_settings: { stability: 0.35, similarity_boost: 0.90, style: 1.0, use_speaker_boost: true },
-    ttsRate: 0.30, ttsPitch: 1.3,
-  },
-  happy: {
-    voice_id: 'jBpfuIE2acCO8z3wKNLl', // Gigi — cheerful female
-    voice_settings: { stability: 0.20, similarity_boost: 0.90, style: 1.0, use_speaker_boost: true },
-    ttsRate: 0.55, ttsPitch: 1.5,
+    voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah — soft, warm female
+    voice_settings: {
+      stability: 0.45,         // balanced — natural warmth, not robotic
+      similarity_boost: 0.88,
+      style: 0.85,             // expressive but not over-dramatic
+      use_speaker_boost: true,
+    },
+    ttsRate: 0.45, ttsPitch: 1.1, // natural pace, slightly warm
   },
   sad: {
-    voice_id: 'onwK4e9ZLuTAKqWW03F9', // Daniel — deep male
-    voice_settings: { stability: 0.90, similarity_boost: 0.80, style: 0.85, use_speaker_boost: false },
-    ttsRate: 0.25, ttsPitch: 0.68,
+    voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah — soft female, emotional
+    voice_settings: {
+      stability: 0.65,         // moderate — emotional but not too slow
+      similarity_boost: 0.85,
+      style: 0.80,             // clear sadness, natural
+      use_speaker_boost: false,
+    },
+    ttsRate: 0.42, ttsPitch: 0.92, // slightly slower, natural emotional pace
+  },
+  happy: {
+    voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam — energetic male
+    voice_settings: {
+      stability: 0.30,         // lively variation = cheerful energy
+      similarity_boost: 0.88,
+      style: 0.90,             // clearly happy, expressive
+      use_speaker_boost: true,
+    },
+    ttsRate: 0.50, ttsPitch: 1.1, // natural energetic pace
   },
   angry: {
-    voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam — strong male
-    voice_settings: { stability: 0.10, similarity_boost: 1.0, style: 1.0, use_speaker_boost: true },
-    ttsRate: 0.62, ttsPitch: 0.58,
+    voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam — deep dominant male
+    voice_settings: {
+      stability: 0.12,         // very low = intense, powerful, dangerous
+      similarity_boost: 1.0,   // max character strength
+      style: 1.0,              // max — warning, authority, anger
+      use_speaker_boost: true,
+    },
+    ttsRate: 0.44, ttsPitch: 0.78, // normal-slow pace, very deep pitch — powerful
   },
 };
 

@@ -44,23 +44,32 @@ const HomeScreen = () => {
   const handleInputChange = (text) => {
     setInputText(text);
     if (sourceLang !== 'auto') return;
-    if (!text.trim() || text.trim().length < 3) return;
-    if (detectTimer.current) clearTimeout(detectTimer.current);
-    detectTimer.current = setTimeout(async () => {
-      try {
-        const res = await fetch('http://localhost:5000/api/translate/detect', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: text.trim().slice(0, 100) }),
-        });
-        const data = await res.json();
-        const detected = data.detectedLang;
-        if (detected && detected !== 'auto' && detected !== 'en') {
-          setSourceLang(detected);
-          setDetectedLang(detected);
-        }
-      } catch (e) {}
-    }, 800);
+    if (!text.trim() || text.trim().length < 2) return;
+
+    // Script-based instant detection — no API needed
+    const t = text.trim();
+    let detected = null;
+
+    if (/[\u0900-\u097F]/.test(t)) detected = 'hi';        // Devanagari → Hindi
+    else if (/[\u0980-\u09FF]/.test(t)) detected = 'bn';   // Bengali
+    else if (/[\u0B80-\u0BFF]/.test(t)) detected = 'ta';   // Tamil
+    else if (/[\u0C00-\u0C7F]/.test(t)) detected = 'te';   // Telugu
+    else if (/[\u0C80-\u0CFF]/.test(t)) detected = 'kn';   // Kannada
+    else if (/[\u0D00-\u0D7F]/.test(t)) detected = 'ml';   // Malayalam
+    else if (/[\u0A80-\u0AFF]/.test(t)) detected = 'gu';   // Gujarati
+    else if (/[\u0A00-\u0A7F]/.test(t)) detected = 'pa';   // Punjabi
+    else if (/[\u0600-\u06FF]/.test(t)) detected = 'ar';   // Arabic/Urdu
+    else if (/[\u4E00-\u9FFF]/.test(t)) detected = 'zh-CN'; // Chinese
+    else if (/[\u3040-\u30FF]/.test(t)) detected = 'ja';   // Japanese
+    else if (/[\uAC00-\uD7AF]/.test(t)) detected = 'ko';   // Korean
+    else if (/[\u0400-\u04FF]/.test(t)) detected = 'ru';   // Russian/Cyrillic
+    else if (/[\u0E00-\u0E7F]/.test(t)) detected = 'th';   // Thai
+    else if (/[a-zA-Z]/.test(t)) detected = 'en';           // Latin → English
+
+    if (detected && detected !== sourceLang) {
+      setSourceLang(detected);
+      setDetectedLang(detected);
+    }
   };
 
   const runTranslation = async () => {
@@ -119,9 +128,7 @@ const HomeScreen = () => {
 
         {/* â”€â”€ Header â”€â”€ */}
         <View style={s.header}>
-          <View style={s.logoRow}>
-            <Image source={require('../assets/logo.png')} style={s.logoImage} resizeMode="contain" />
-          </View>
+          <View style={s.logoRow}><Image source={require('../assets/logo.png')} style={s.logoImage} resizeMode="contain" /><Image source={require('../assets/aicte_logo.png')} style={s.aicteImage} resizeMode="contain" /></View>
           <TouchableOpacity onPress={toggleTheme} style={s.themeBtn}>
             <Text style={s.themeBtnText}>{isDark ? '\u2600\uFE0F' : '\uD83C\uDF19'}</Text>
           </TouchableOpacity>
@@ -241,8 +248,9 @@ const makeStyles = (theme, isDark) => StyleSheet.create({
 
   // Header
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingTop: 6, paddingHorizontal: 4, backgroundColor: isDark ? '#0F0F1A' : '#FFFFFF', borderRadius: 12 },
-  logoRow: { flex: 1, alignItems: 'flex-end' },
-  logoImage: { width: '90%', height: 70, backgroundColor: 'transparent' },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  logoImage: { width: 150, height: 55, backgroundColor: 'transparent' },
+  aicteImage: { width: 55, height: 55, backgroundColor: 'transparent' },
   logoBox: {
     width: 52, height: 52, borderRadius: 16,
     backgroundColor: '#4F46E5',
@@ -313,6 +321,9 @@ const makeStyles = (theme, isDark) => StyleSheet.create({
 });
 
 export default HomeScreen;
+
+
+
 
 
 
