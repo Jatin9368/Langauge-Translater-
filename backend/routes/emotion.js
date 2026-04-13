@@ -1,49 +1,20 @@
 const express = require('express');
 const axios = require('axios');
-const path = require('path');
-const fs = require('fs');
 const router = express.Router();
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const AICTE_TTS_URL = 'https://pravahai.aicte-india.org/audiobook/api/tts/synthesize';
 
-const AUDIO_DIR = path.join(__dirname, '../audio_cache');
-if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
-
 // ─── AICTE TTS Config ────────────────────────────────────────────────────────
+// model: 'fast' = 4-5s response
 const AICTE_CONFIG = {
-  love:  { emotion: 'loving',     gender: 'female', speed: 0.88, pitch: 2  },
+  love:  { emotion: 'loving',      gender: 'female', speed: 0.88, pitch: 2  },
   sad:   { emotion: 'melancholic', gender: 'female', speed: 0.82, pitch: -2 },
-  happy: { emotion: 'joyful',     gender: 'male',   speed: 1.08, pitch: 3  },
-  angry: { emotion: 'furious',    gender: 'male',   speed: 1.12, pitch: -4 },
+  happy: { emotion: 'joyful',      gender: 'male',   speed: 1.08, pitch: 3  },
+  angry: { emotion: 'furious',     gender: 'male',   speed: 1.12, pitch: -4 },
 };
 
-// ─── ElevenLabs Config (fallback) — COMMENTED OUT ────────────────────────────
-// const EL_CONFIG = {
-//   love: {
-//     voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah
-//     voice_settings: { stability: 0.20, similarity_boost: 0.90, style: 0.80, use_speaker_boost: true },
-//     ttsRate: 0.44, ttsPitch: 1.15,
-//   },
-//   sad: {
-//     voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah
-//     voice_settings: { stability: 0.15, similarity_boost: 0.88, style: 0.85, use_speaker_boost: true },
-//     ttsRate: 0.38, ttsPitch: 0.88,
-//   },
-//   happy: {
-//     voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam
-//     voice_settings: { stability: 0.22, similarity_boost: 0.85, style: 0.82, use_speaker_boost: true },
-//     ttsRate: 0.52, ttsPitch: 1.18,
-//   },
-//   angry: {
-//     voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam
-//     voice_settings: { stability: 0.10, similarity_boost: 0.92, style: 0.90, use_speaker_boost: true },
-//     ttsRate: 0.48, ttsPitch: 0.72,
-//   },
-// };
-
-// TTS fallback rates (used when AICTE fails and device TTS is used)
-const EL_CONFIG = {
+// TTS device fallback rates
+const TTS_RATES = {
   love:  { ttsRate: 0.44, ttsPitch: 1.15 },
   sad:   { ttsRate: 0.38, ttsPitch: 0.88 },
   happy: { ttsRate: 0.52, ttsPitch: 1.18 },
@@ -64,63 +35,10 @@ const getAicteLang = (lang) => {
   return AICTE_LANG_MAP[lang] || AICTE_LANG_MAP[lang.split('-')[0]] || 'hi';
 };
 
-// ─── AICTE TTS ───────────────────────────────────────────────────────────────
-const generateWithAicte = async (text, emotion, targetLang) => {
-  const cfg = AICTE_CONFIG[emotion];
-  if (!cfg) throw new Error('Unsupported emotion');
-
-  const res = await axios.post(
-    AICTE_TTS_URL,
-    { text, language: getAicteLang(targetLang), gender: cfg.gender, emotion: cfg.emotion, speed: cfg.speed, pitch: cfg.pitch, model: 'full' },
-    { headers: { 'Content-Type': 'application/json' }, responseType: 'arraybuffer', timeout: 12000 }
-  );
-
-  const filename = `emotion_${emotion}_${Date.now()}.wav`;
-  fs.writeFileSync(path.join(AUDIO_DIR, filename), Buffer.from(res.data));
-  return filename;
-};
-
-// ─── ElevenLabs TTS — COMMENTED OUT ─────────────────────────────────────────
-// const generateWithElevenLabs = async (text, emotion) => {
-//   const cfg = EL_CONFIG[emotion];
-//   if (!cfg || !ELEVENLABS_API_KEY) throw new Error('ElevenLabs not configured');
-//   const res = await axios.post(
-//     `https://api.elevenlabs.io/v1/text-to-speech/${cfg.voice_id}`,
-//     { text, model_id: 'eleven_multilingual_v2', voice_settings: cfg.voice_settings },
-//     {
-//       headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
-//       responseType: 'arraybuffer',
-//       timeout: 30000,
-//     }
-//   );
-//   const filename = `emotion_${emotion}_${Date.now()}.mp3`;
-//   fs.writeFileSync(path.join(AUDIO_DIR, filename), Buffer.from(res.data));
-//   return filename;
-// };
-
-// ─── Cleanup: keep last 6 files ──────────────────────────────────────────────
-const cleanupCache = () => {
-  try {
-    const files = fs.readdirSync(AUDIO_DIR)
-      .filter(f => f.endsWith('.mp3') || f.endsWith('.wav'))
-      .sort();
-    if (files.length > 6) {
-      files.slice(0, files.length - 6).forEach(f => {
-        try { fs.unlinkSync(path.join(AUDIO_DIR, f)); } catch (_) {}
-      });
-    }
-  } catch (_) {}
-};
-
-// ─── Serve audio ─────────────────────────────────────────────────────────────
-router.get('/audio/:filename', (req, res) => {
-  const filename = path.basename(req.params.filename);
-  const filepath = path.resolve(AUDIO_DIR, filename);
-  if (!fs.existsSync(filepath)) return res.status(404).json({ error: 'Not found' });
-  res.setHeader('Content-Type', filename.endsWith('.wav') ? 'audio/wav' : 'audio/mpeg');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.sendFile(filepath);
-});
+// ─── ElevenLabs — COMMENTED OUT ──────────────────────────────────────────────
+// const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+// const EL_CONFIG = { love: { voice_id: 'EXAVITQu4vr4xnSDxMaL', ... }, ... };
+// const generateWithElevenLabs = async (text, emotion) => { ... };
 
 // ─── POST /api/emotion/rephrase ───────────────────────────────────────────────
 router.post('/rephrase', async (req, res, next) => {
@@ -133,41 +51,48 @@ router.post('/rephrase', async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Invalid emotion' });
     }
 
-    const elCfg = EL_CONFIG[emotionKey];
+    const cfg = AICTE_CONFIG[emotionKey];
+    const rates = TTS_RATES[emotionKey];
     const emojis = { love: '❤️', sad: '😢', angry: '😡', happy: '😄' };
 
-    let audioUrl = null;
+    let audioBase64 = null;
     let usedEngine = null;
 
-    // ── Primary: AICTE TTS ──
+    // ── AICTE TTS — returns WAV as base64 directly (no file system) ──
     try {
-      const filename = await generateWithAicte(text.trim(), emotionKey, targetLang);
-      audioUrl = `/api/emotion/audio/${filename}`;
+      const response = await axios.post(
+        AICTE_TTS_URL,
+        {
+          text: text.trim(),
+          language: getAicteLang(targetLang),
+          gender: cfg.gender,
+          emotion: cfg.emotion,
+          speed: cfg.speed,
+          pitch: cfg.pitch,
+          model: 'fast',
+        },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          responseType: 'arraybuffer',
+          timeout: 15000,
+        }
+      );
+
+      audioBase64 = Buffer.from(response.data).toString('base64');
       usedEngine = 'aicte';
-      console.log(`[AICTE TTS] ${emotionKey} OK: ${filename}`);
+      console.log(`[AICTE TTS] ${emotionKey} OK (${response.data.byteLength} bytes)`);
     } catch (e) {
       console.log(`[AICTE TTS] Failed: ${e.message}`);
-      // ElevenLabs fallback — COMMENTED OUT
-      // try {
-      //   const filename = await generateWithElevenLabs(text.trim(), emotionKey);
-      //   audioUrl = `/api/emotion/audio/${filename}`;
-      //   usedEngine = 'elevenlabs';
-      //   console.log(`[ElevenLabs] ${emotionKey} OK: ${filename}`);
-      // } catch (e2) {
-      //   console.log(`[ElevenLabs] Failed: ${e2.message}`);
-      // }
     }
-
-    // Cleanup AFTER generating — so new file is never deleted before serving
-    cleanupCache();
 
     return res.json({
       success: true,
       voiceText: text.trim(),
-      audioUrl,
+      audioBase64,        // WAV audio as base64 string
+      audioMime: 'audio/wav',
       engine: usedEngine,
-      ttsRate: elCfg.ttsRate,
-      ttsPitch: elCfg.ttsPitch,
+      ttsRate: rates.ttsRate,
+      ttsPitch: rates.ttsPitch,
       emotion: emotionKey,
       emoji: emojis[emotionKey],
     });
