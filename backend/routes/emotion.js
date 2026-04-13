@@ -11,12 +11,12 @@ const AUDIO_DIR = path.join(__dirname, '../audio_cache');
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
 
 // ─── AICTE TTS Emotion Mapping ───────────────────────────────────────────────
-// Emotion families from AICTE docs: joy, sadness, anger, love, etc.
+// Valid emotion IDs from https://pravahai.aicte-india.org/audiobook/api/tts/emotions
 const AICTE_EMOTION_CONFIG = {
-  love:  { emotion: 'romantic',  gender: 'female', speed: 0.95, pitch: 1  },
-  sad:   { emotion: 'sad',       gender: 'female', speed: 0.90, pitch: -1 },
-  happy: { emotion: 'happy',     gender: 'male',   speed: 1.05, pitch: 1  },
-  angry: { emotion: 'angry',     gender: 'male',   speed: 1.0,  pitch: -2 },
+  love:  { emotion: 'loving',    gender: 'female', speed: 0.90, pitch: 2  },  // pyar se, soft warm female
+  sad:   { emotion: 'melancholic', gender: 'female', speed: 0.85, pitch: -1 }, // dukhi, emotional female
+  happy: { emotion: 'joyful',    gender: 'male',   speed: 1.05, pitch: 2  },  // khushi, energetic male
+  angry: { emotion: 'furious',   gender: 'male',   speed: 1.10, pitch: -3 },  // tej gussa, dominant male
 };
 
 // ─── ElevenLabs Config (fallback) ────────────────────────────────────────────
