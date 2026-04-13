@@ -4,7 +4,7 @@ import { Alert } from 'react-native';
 // Physical device (WiFi): apni machine ka IP daalo → ipconfig se check karo
 // Android Emulator: 'http://10.0.2.2:5000'
 // USB + adb reverse tcp:5000 tcp:5000: 'http://localhost:5000'
-const BASE_URL = 'http://localhost:5000'; // USB adb reverse se connect
+export const BASE_URL = 'http://localhost:5000'; // USB adb reverse se connect
 
 const api = axios.create({
   baseURL: BASE_URL,
