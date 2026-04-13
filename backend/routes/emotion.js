@@ -135,11 +135,14 @@ const cleanupAudioCache = () => {
 
 // ─── Serve audio ─────────────────────────────────────────────────────────────
 router.get('/audio/:filename', (req, res) => {
-  const filepath = path.join(AUDIO_DIR, req.params.filename);
+  // Sanitize filename — no path traversal
+  const filename = path.basename(req.params.filename);
+  const filepath = path.resolve(AUDIO_DIR, filename);
   if (!fs.existsSync(filepath)) return res.status(404).json({ error: 'Not found' });
-  const isWav = req.params.filename.endsWith('.wav');
+  const isWav = filename.endsWith('.wav');
   res.setHeader('Content-Type', isWav ? 'audio/wav' : 'audio/mpeg');
   res.setHeader('Cache-Control', 'no-cache');
+  // sendFile requires absolute path
   res.sendFile(filepath);
 });
 
@@ -160,12 +163,14 @@ router.post('/rephrase', async (req, res, next) => {
     let audioUrl = null;
     let usedEngine = null;
 
+    // Cleanup old files before generating new one
+    cleanupAudioCache();
+
     // ── Primary: AICTE TTS ──
     try {
       const filename = await generateWithAicteTTS(text.trim(), emotionKey, targetLang);
       audioUrl = `/api/emotion/audio/${filename}`;
       usedEngine = 'aicte';
-      cleanupAudioCache();
       console.log(`[AICTE TTS] ${emotionKey} OK: ${filename}`);
     } catch (aicteErr) {
       console.log(`[AICTE TTS] Failed: ${aicteErr.message} — ElevenLabs fallback`);
@@ -175,7 +180,6 @@ router.post('/rephrase', async (req, res, next) => {
         const filename = await generateWithElevenLabs(text.trim(), emotionKey);
         audioUrl = `/api/emotion/audio/${filename}`;
         usedEngine = 'elevenlabs';
-        cleanupAudioCache();
         console.log(`[ElevenLabs] ${emotionKey} OK: ${filename}`);
       } catch (elErr) {
         console.log(`[ElevenLabs] Failed: ${elErr.message}`);
