@@ -18,33 +18,36 @@ const AICTE_CONFIG = {
   angry: { emotion: 'furious',    gender: 'male',   speed: 1.12, pitch: -4 },
 };
 
-// ─── ElevenLabs Config (fallback) ────────────────────────────────────────────
-// Sarah (female) = Love & Sad | Adam (male) = Happy & Angry
+// ─── ElevenLabs Config (fallback) — COMMENTED OUT ────────────────────────────
+// const EL_CONFIG = {
+//   love: {
+//     voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah
+//     voice_settings: { stability: 0.20, similarity_boost: 0.90, style: 0.80, use_speaker_boost: true },
+//     ttsRate: 0.44, ttsPitch: 1.15,
+//   },
+//   sad: {
+//     voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah
+//     voice_settings: { stability: 0.15, similarity_boost: 0.88, style: 0.85, use_speaker_boost: true },
+//     ttsRate: 0.38, ttsPitch: 0.88,
+//   },
+//   happy: {
+//     voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam
+//     voice_settings: { stability: 0.22, similarity_boost: 0.85, style: 0.82, use_speaker_boost: true },
+//     ttsRate: 0.52, ttsPitch: 1.18,
+//   },
+//   angry: {
+//     voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam
+//     voice_settings: { stability: 0.10, similarity_boost: 0.92, style: 0.90, use_speaker_boost: true },
+//     ttsRate: 0.48, ttsPitch: 0.72,
+//   },
+// };
+
+// TTS fallback rates (used when AICTE fails and device TTS is used)
 const EL_CONFIG = {
-  love: {
-    voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah
-    // Soft, warm, caring — low stability = more expressive, high style = emotional
-    voice_settings: { stability: 0.20, similarity_boost: 0.90, style: 0.80, use_speaker_boost: true },
-    ttsRate: 0.44, ttsPitch: 1.15,
-  },
-  sad: {
-    voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah
-    // Slow, heavy, emotional — very low stability = maximum emotion
-    voice_settings: { stability: 0.15, similarity_boost: 0.88, style: 0.85, use_speaker_boost: true },
-    ttsRate: 0.38, ttsPitch: 0.88,
-  },
-  happy: {
-    voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam
-    // Energetic, cheerful, lively — low stability = upbeat variation
-    voice_settings: { stability: 0.22, similarity_boost: 0.85, style: 0.82, use_speaker_boost: true },
-    ttsRate: 0.52, ttsPitch: 1.18,
-  },
-  angry: {
-    voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam
-    // Strong, sharp, aggressive — very low stability = intense delivery
-    voice_settings: { stability: 0.10, similarity_boost: 0.92, style: 0.90, use_speaker_boost: true },
-    ttsRate: 0.48, ttsPitch: 0.72,
-  },
+  love:  { ttsRate: 0.44, ttsPitch: 1.15 },
+  sad:   { ttsRate: 0.38, ttsPitch: 0.88 },
+  happy: { ttsRate: 0.52, ttsPitch: 1.18 },
+  angry: { ttsRate: 0.48, ttsPitch: 0.72 },
 };
 
 // Language code → AICTE short code
@@ -77,25 +80,23 @@ const generateWithAicte = async (text, emotion, targetLang) => {
   return filename;
 };
 
-// ─── ElevenLabs TTS ──────────────────────────────────────────────────────────
-const generateWithElevenLabs = async (text, emotion) => {
-  const cfg = EL_CONFIG[emotion];
-  if (!cfg || !ELEVENLABS_API_KEY) throw new Error('ElevenLabs not configured');
-
-  const res = await axios.post(
-    `https://api.elevenlabs.io/v1/text-to-speech/${cfg.voice_id}`,
-    { text, model_id: 'eleven_multilingual_v2', voice_settings: cfg.voice_settings },
-    {
-      headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
-      responseType: 'arraybuffer',
-      timeout: 30000,
-    }
-  );
-
-  const filename = `emotion_${emotion}_${Date.now()}.mp3`;
-  fs.writeFileSync(path.join(AUDIO_DIR, filename), Buffer.from(res.data));
-  return filename;
-};
+// ─── ElevenLabs TTS — COMMENTED OUT ─────────────────────────────────────────
+// const generateWithElevenLabs = async (text, emotion) => {
+//   const cfg = EL_CONFIG[emotion];
+//   if (!cfg || !ELEVENLABS_API_KEY) throw new Error('ElevenLabs not configured');
+//   const res = await axios.post(
+//     `https://api.elevenlabs.io/v1/text-to-speech/${cfg.voice_id}`,
+//     { text, model_id: 'eleven_multilingual_v2', voice_settings: cfg.voice_settings },
+//     {
+//       headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+//       responseType: 'arraybuffer',
+//       timeout: 30000,
+//     }
+//   );
+//   const filename = `emotion_${emotion}_${Date.now()}.mp3`;
+//   fs.writeFileSync(path.join(AUDIO_DIR, filename), Buffer.from(res.data));
+//   return filename;
+// };
 
 // ─── Cleanup: keep last 6 files ──────────────────────────────────────────────
 const cleanupCache = () => {
@@ -145,17 +146,16 @@ router.post('/rephrase', async (req, res, next) => {
       usedEngine = 'aicte';
       console.log(`[AICTE TTS] ${emotionKey} OK: ${filename}`);
     } catch (e) {
-      console.log(`[AICTE TTS] Failed: ${e.message} — ElevenLabs fallback`);
-
-      // ── Fallback: ElevenLabs ──
-      try {
-        const filename = await generateWithElevenLabs(text.trim(), emotionKey);
-        audioUrl = `/api/emotion/audio/${filename}`;
-        usedEngine = 'elevenlabs';
-        console.log(`[ElevenLabs] ${emotionKey} OK: ${filename}`);
-      } catch (e2) {
-        console.log(`[ElevenLabs] Failed: ${e2.message}`);
-      }
+      console.log(`[AICTE TTS] Failed: ${e.message}`);
+      // ElevenLabs fallback — COMMENTED OUT
+      // try {
+      //   const filename = await generateWithElevenLabs(text.trim(), emotionKey);
+      //   audioUrl = `/api/emotion/audio/${filename}`;
+      //   usedEngine = 'elevenlabs';
+      //   console.log(`[ElevenLabs] ${emotionKey} OK: ${filename}`);
+      // } catch (e2) {
+      //   console.log(`[ElevenLabs] Failed: ${e2.message}`);
+      // }
     }
 
     // Cleanup AFTER generating — so new file is never deleted before serving
