@@ -5,7 +5,6 @@ const fs = require('fs');
 const router = express.Router();
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-const AICTE_TTS_URL = 'https://pravahai.aicte-india.org/audiobook/api/tts/synthesize';
 
 const AUDIO_DIR = path.join(__dirname, '../audio_cache');
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
@@ -35,22 +34,7 @@ const EL_CONFIG = {
   },
 };
 
-// ─── AICTE TTS Config (FALLBACK) ─────────────────────────────────────────────
-const AICTE_CONFIG = {
-  love:  { emotion: 'loving',      gender: 'female', speed: 0.88, pitch: 2  },
-  sad:   { emotion: 'melancholic', gender: 'female', speed: 0.82, pitch: -2 },
-  happy: { emotion: 'joyful',      gender: 'male',   speed: 1.08, pitch: 3  },
-  angry: { emotion: 'furious',     gender: 'male',   speed: 1.12, pitch: -4 },
-};
-
-const AICTE_LANG_MAP = {
-  hi: 'hi', en: 'en', bn: 'bn', ta: 'ta', te: 'te', mr: 'mr',
-  gu: 'gu', kn: 'kn', ml: 'ml', pa: 'pa', as: 'as', or: 'or', ur: 'ur',
-  'hi-IN': 'hi', 'en-IN': 'en', 'en-US': 'en', 'bn-IN': 'bn',
-  'ta-IN': 'ta', 'te-IN': 'te', 'mr-IN': 'mr', 'gu-IN': 'gu',
-  'kn-IN': 'kn', 'ml-IN': 'ml', 'pa-IN': 'pa',
-};
-const getAicteLang = (lang) => AICTE_LANG_MAP[lang] || AICTE_LANG_MAP[lang?.split('-')[0]] || 'hi';
+// ─── AICTE TTS Config (FALLBACK) — REMOVED ───────────────────────────────────
 
 // ─── Generate with ElevenLabs ─────────────────────────────────────────────────
 const generateWithElevenLabs = async (text, emotion) => {
@@ -81,26 +65,7 @@ const generateWithElevenLabs = async (text, emotion) => {
   return filename;
 };
 
-// ─── Generate with AICTE TTS ──────────────────────────────────────────────────
-const generateWithAicte = async (text, emotion, targetLang) => {
-  const cfg = AICTE_CONFIG[emotion];
-  if (!cfg) throw new Error('AICTE: unsupported emotion');
 
-  console.log(`[AICTE TTS] Generating ${emotion}...`);
-  const res = await axios.post(
-    AICTE_TTS_URL,
-    { text, language: getAicteLang(targetLang), gender: cfg.gender, emotion: cfg.emotion, speed: cfg.speed, pitch: cfg.pitch, model: 'fast' },
-    { headers: { 'Content-Type': 'application/json' }, responseType: 'arraybuffer', timeout: 15000 }
-  );
-
-  if (!res.data || res.data.byteLength < 100) throw new Error('AICTE: empty audio response');
-
-  const filename = `aicte_${emotion}_${Date.now()}.wav`;
-  const filepath = path.join(AUDIO_DIR, filename);
-  fs.writeFileSync(filepath, Buffer.from(res.data));
-  console.log(`[AICTE TTS] ${emotion} OK → ${filename} (${res.data.byteLength} bytes)`);
-  return filename;
-};
 
 // ─── Cleanup: keep last 10 files ─────────────────────────────────────────────
 const cleanupCache = () => {
@@ -151,20 +116,12 @@ router.post('/rephrase', async (req, res, next) => {
     let filename = null;
     let usedEngine = null;
 
-    // ── Primary: ElevenLabs ──
+    // ── ElevenLabs (only engine) ──
     try {
       filename = await generateWithElevenLabs(text.trim(), emotionKey);
       usedEngine = 'elevenlabs';
     } catch (elErr) {
-      console.log(`[ElevenLabs] Failed: ${elErr.message} → AICTE fallback`);
-
-      // ── Fallback: AICTE TTS ──
-      try {
-        filename = await generateWithAicte(text.trim(), emotionKey, targetLang);
-        usedEngine = 'aicte';
-      } catch (aicteErr) {
-        console.log(`[AICTE TTS] Failed: ${aicteErr.message}`);
-      }
+      console.log(`[ElevenLabs] Failed: ${elErr.message}`);
     }
 
     // Cleanup AFTER generating — never delete the new file
