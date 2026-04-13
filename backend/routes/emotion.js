@@ -4,18 +4,19 @@ const path = require('path');
 const fs = require('fs');
 const router = express.Router();
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+//const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const AICTE_TTS_URL = 'https://pravahai.aicte-india.org/audiobook/api/tts/synthesize';
 
 const AUDIO_DIR = path.join(__dirname, '../audio_cache');
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
 
 // ─── AICTE TTS Config ────────────────────────────────────────────────────────
+// model: 'fast' = 4-5s | 'full' = 10s+ (slow)
 const AICTE_CONFIG = {
-  love:  { emotion: 'loving',     gender: 'female', speed: 0.88, pitch: 2  },
+  love:  { emotion: 'loving',      gender: 'female', speed: 0.88, pitch: 2  },
   sad:   { emotion: 'melancholic', gender: 'female', speed: 0.82, pitch: -2 },
-  happy: { emotion: 'joyful',     gender: 'male',   speed: 1.08, pitch: 3  },
-  angry: { emotion: 'furious',    gender: 'male',   speed: 1.12, pitch: -4 },
+  happy: { emotion: 'joyful',      gender: 'male',   speed: 1.08, pitch: 3  },
+  angry: { emotion: 'furious',     gender: 'male',   speed: 1.12, pitch: -4 },
 };
 
 // ─── ElevenLabs Config (fallback) — COMMENTED OUT ────────────────────────────
@@ -71,8 +72,8 @@ const generateWithAicte = async (text, emotion, targetLang) => {
 
   const res = await axios.post(
     AICTE_TTS_URL,
-    { text, language: getAicteLang(targetLang), gender: cfg.gender, emotion: cfg.emotion, speed: cfg.speed, pitch: cfg.pitch, model: 'full' },
-    { headers: { 'Content-Type': 'application/json' }, responseType: 'arraybuffer', timeout: 12000 }
+    { text, language: getAicteLang(targetLang), gender: cfg.gender, emotion: cfg.emotion, speed: cfg.speed, pitch: cfg.pitch, model: 'fast' },
+    { headers: { 'Content-Type': 'application/json' }, responseType: 'arraybuffer', timeout: 15000 }
   );
 
   const filename = `emotion_${emotion}_${Date.now()}.wav`;
