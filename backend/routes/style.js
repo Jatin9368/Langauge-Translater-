@@ -1,6 +1,5 @@
 ﻿const express = require('express');
 const axios = require('axios');
-const { translate } = require('@vitalets/google-translate-api');
 const router = express.Router();
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
@@ -75,8 +74,6 @@ router.post('/rephrase', async (req, res, next) => {
   try {
     const { text, targetLang } = req.body;
     if (!text?.trim()) return res.status(400).json({ success: false, error: 'Text is required' });
-
-    const langName = langNames[targetLang] || 'the same language as input';
 
     // Convert to English for Groq (more reliable)
     let inputText = text.trim();

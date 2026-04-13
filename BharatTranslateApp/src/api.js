@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { Alert } from 'react-native';
 
 // Physical device (WiFi): apni machine ka IP daalo → ipconfig se check karo
 // Android Emulator: 'http://10.0.2.2:5000'
