@@ -1,112 +1,56 @@
 const express = require('express');
 const axios = require('axios');
-const { translate } = require('@vitalets/google-translate-api');
 const router = express.Router();
 const History = require('../models/History');
 
 const LANGBLY_KEY = process.env.LANGBLY_API_KEY;
 const LANGBLY_URL = 'https://api.langbly.com/language/translate/v2';
+const PRAVAHAI_URL = 'https://pravahai.aicte-india.org/api/translatebulk';
 
-// Script-based language detection — fast, no API needed
-const detectScriptMismatch = (text, selectedLang) => {
-  if (!text || !selectedLang || selectedLang === 'auto') return null;
-
-  const scripts = {
-    // Devanagari — Hindi, Marathi, Nepali, Sanskrit (same script, allow all)
-    devanagari: /[\u0900-\u097F]/,
-    // Bengali
-    bengali: /[\u0980-\u09FF]/,
-    // Tamil
-    tamil: /[\u0B80-\u0BFF]/,
-    // Telugu
-    telugu: /[\u0C00-\u0C7F]/,
-    // Kannada
-    kannada: /[\u0C80-\u0CFF]/,
-    // Malayalam
-    malayalam: /[\u0D00-\u0D7F]/,
-    // Gujarati
-    gujarati: /[\u0A80-\u0AFF]/,
-    // Punjabi/Gurmukhi
-    gurmukhi: /[\u0A00-\u0A7F]/,
-    // Arabic/Urdu/Persian
-    arabic: /[\u0600-\u06FF]/,
-    // Latin (English, French, German, Spanish, etc.)
-    latin: /[a-zA-Z]/,
-    // Chinese
-    chinese: /[\u4E00-\u9FFF]/,
-    // Japanese
-    japanese: /[\u3040-\u30FF\u4E00-\u9FFF]/,
-    // Korean
-    korean: /[\uAC00-\uD7AF]/,
-    // Cyrillic (Russian, Ukrainian)
-    cyrillic: /[\u0400-\u04FF]/,
-    // Thai
-    thai: /[\u0E00-\u0E7F]/,
-  };
-
-  // Map language to expected script
-  const langScript = {
-    hi: 'devanagari', mr: 'devanagari', ne: 'devanagari',
-    bn: 'bengali', as: 'bengali',
-    ta: 'tamil',
-    te: 'telugu',
-    kn: 'kannada',
-    ml: 'malayalam',
-    gu: 'gujarati',
-    pa: 'gurmukhi',
-    ur: 'arabic', ar: 'arabic', fa: 'arabic',
-    en: 'latin', fr: 'latin', de: 'latin', es: 'latin',
-    it: 'latin', pt: 'latin', nl: 'latin', pl: 'latin',
-    tr: 'latin', id: 'latin', ms: 'latin', vi: 'latin', sw: 'latin',
-    'zh-CN': 'chinese',
-    ja: 'japanese',
-    ko: 'korean',
-    ru: 'cyrillic', uk: 'cyrillic',
-    th: 'thai',
-  };
-
-  const expectedScript = langScript[selectedLang];
-  if (!expectedScript) return null;
-
-  // Check what script the text actually uses
-  const textScripts = Object.entries(scripts).filter(([, regex]) => regex.test(text));
-  if (!textScripts.length) return null;
-
-  const dominantScript = textScripts[0][0];
-
-  // If text script doesn't match expected script — mismatch!
-  if (dominantScript !== expectedScript) {
-    return {
-      mismatch: true,
-      textScript: dominantScript,
-      expectedScript,
-    };
-  }
-  return null;
+// ─── Pravahai Language Code Mapping ─────────────────────────────────────────
+// App uses short codes (hi, ta, en...) → Pravahai needs (hi-IN, ta-IN, en-IN, fr-FO...)
+const PRAVAHAI_CODE_MAP = {
+  // Indian languages → xx-IN
+  hi: 'hi-IN', bn: 'bn-IN', ta: 'ta-IN', te: 'te-IN', mr: 'mr-IN',
+  gu: 'gu-IN', kn: 'kn-IN', ml: 'ml-IN', pa: 'pa-IN', or: 'or-IN',
+  as: 'as-IN', ur: 'ur-IN', ne: 'ne-IN', sa: 'sa-IN',
+  mai: 'mai-IN', sat: 'sat-IN', ks: 'ks-ar-IN', kok: 'gom-IN',
+  sd: 'sd-dn-IN', doi: 'doi-IN', 'mni-Mtei': 'mni-IN', brx: 'brx-IN',
+  en: 'en-IN',
+  // Foreign languages → xx-FO
+  es: 'es-FO', fr: 'fr-FO', de: 'de-FO', ja: 'ja-FO', ko: 'ko-FO',
+  ar: 'ar-FO', ru: 'ru-FO', pt: 'pt-FO', it: 'it-FO', tr: 'tr-FO',
+  nl: 'nl-FO', pl: 'pl-FO', th: 'th-FO', vi: 'vi-FO', id: 'id-FO',
+  ms: 'ms-FO', fa: 'fa-FO', sw: 'sw-FO', 'zh-CN': 'zh-FO', uk: 'uk-FO',
+  bg: 'bg-FO', cs: 'cs-FO', da: 'da-FO', fi: 'fi-FO', el: 'el-FO',
+  hr: 'hr-FO', hu: 'hu-FO', ro: 'ro-FO', sk: 'sk-FO', sv: 'sv-FO',
+  he: 'he-FO', si: 'si-FO', ka: 'ka-FO', az: 'az-FO', kk: 'kk-FO',
+  uz: 'uz-FO', mn: 'mn-FO', km: 'km-FO', lo: 'lo-FO', my: 'my-FO',
+  am: 'am-FO', yo: 'yo-FO', ig: 'ig-FO', ha: 'ha-FO', zu: 'zu-FO',
 };
 
-// Language name map for user-friendly messages
-const LANG_NAMES = {
-  hi: 'Hindi', en: 'English', bn: 'Bengali', ta: 'Tamil', te: 'Telugu',
-  mr: 'Marathi', gu: 'Gujarati', kn: 'Kannada', ml: 'Malayalam', pa: 'Punjabi',
-  ur: 'Urdu', fr: 'French', de: 'German', es: 'Spanish', ja: 'Japanese',
-  'zh-CN': 'Chinese', ar: 'Arabic', ru: 'Russian', ko: 'Korean', pt: 'Portuguese',
-  it: 'Italian', tr: 'Turkish', nl: 'Dutch', pl: 'Polish', th: 'Thai',
-  vi: 'Vietnamese', id: 'Indonesian', ms: 'Malay', fa: 'Persian', sw: 'Swahili',
-  ne: 'Nepali', si: 'Sinhala', sd: 'Sindhi', as: 'Assamese',
+const toPravahaiCode = (code) => {
+  if (!code || code === 'auto') return null;
+  return PRAVAHAI_CODE_MAP[code] || null;
 };
 
-// Detect language using Google
-const detectLanguage = async (text) => {
-  try {
-    const res = await translate(text.slice(0, 100), { to: 'en' });
-    return res.raw?.src || null;
-  } catch (e) {
-    return null;
-  }
+// ─── Pravahai Translation ────────────────────────────────────────────────────
+const translateWithPravahai = async (text, targetLang) => {
+  const toCode = toPravahaiCode(targetLang);
+  if (!toCode) throw new Error(`Pravahai: unsupported lang ${targetLang}`);
+
+  const res = await axios.post(
+    PRAVAHAI_URL,
+    [{ text, to: toCode }],
+    { headers: { 'Content-Type': 'application/json' }, timeout: 20000 }
+  );
+
+  const translated = res.data?.[0]?.translations?.[0]?.text;
+  if (!translated) throw new Error('Pravahai: empty response');
+  return { text: translated };
 };
 
-// Langbly Translation API
+// ─── Langbly Translation (fallback) ─────────────────────────────────────────
 const translateWithLangbly = async (text, sourceLang, targetLang) => {
   const params = { q: text, target: targetLang, key: LANGBLY_KEY };
   if (sourceLang && sourceLang !== 'auto') params.source = sourceLang;
@@ -119,20 +63,7 @@ const translateWithLangbly = async (text, sourceLang, targetLang) => {
   return { text: t, detectedLang: translation.detectedSourceLanguage || sourceLang || 'auto' };
 };
 
-// Languages that need English as pivot for best quality
-const PIVOT_LANGS = new Set([
-  'te', 'ta', 'ml', 'kn', 'or', 'as', 'mai', 'sat', 'ks',
-  'kok', 'sd', 'doi', 'mni-Mtei', 'brx', 'pa', 'gu', 'mr',
-  'bn', 'ur', 'ne', 'sw', 'ms', 'fa',
-]);
-  
-const translateWithPivot = async (text, sourceLang, targetLang) => {
-  const step1 = await translateWithLangbly(text, sourceLang, 'en');
-  const step2 = await translateWithLangbly(step1.text, 'en', targetLang);
-  return { text: step2.text, detectedLang: sourceLang };
-};
-
-// MyMemory fallback
+// ─── MyMemory Translation (last fallback) ───────────────────────────────────
 const translateWithMyMemory = async (text, sourceLang, targetLang) => {
   const src = (!sourceLang || sourceLang === 'auto') ? 'en' : sourceLang;
   const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${src}|${targetLang}`;
@@ -144,7 +75,52 @@ const translateWithMyMemory = async (text, sourceLang, targetLang) => {
   throw new Error('MyMemory failed');
 };
 
-// POST /api/translate
+// ─── Script-based language detection ────────────────────────────────────────
+const LANG_SCRIPT_MAP = {
+  hi: 'devanagari', mr: 'devanagari', ne: 'devanagari',
+  bn: 'bengali', as: 'bengali',
+  ta: 'tamil', te: 'telugu', kn: 'kannada', ml: 'malayalam',
+  gu: 'gujarati', pa: 'gurmukhi',
+  ur: 'arabic', ar: 'arabic', fa: 'arabic',
+  en: 'latin', fr: 'latin', de: 'latin', es: 'latin',
+  it: 'latin', pt: 'latin', nl: 'latin', pl: 'latin',
+  tr: 'latin', id: 'latin', ms: 'latin', vi: 'latin', sw: 'latin',
+  'zh-CN': 'chinese', ja: 'japanese', ko: 'korean',
+  ru: 'cyrillic', uk: 'cyrillic', th: 'thai',
+};
+
+const SCRIPT_REGEX = {
+  devanagari: /[\u0900-\u097F]/,
+  bengali: /[\u0980-\u09FF]/,
+  tamil: /[\u0B80-\u0BFF]/,
+  telugu: /[\u0C00-\u0C7F]/,
+  kannada: /[\u0C80-\u0CFF]/,
+  malayalam: /[\u0D00-\u0D7F]/,
+  gujarati: /[\u0A80-\u0AFF]/,
+  gurmukhi: /[\u0A00-\u0A7F]/,
+  arabic: /[\u0600-\u06FF]/,
+  latin: /[a-zA-Z]/,
+  chinese: /[\u4E00-\u9FFF]/,
+  japanese: /[\u3040-\u30FF\u4E00-\u9FFF]/,
+  korean: /[\uAC00-\uD7AF]/,
+  cyrillic: /[\u0400-\u04FF]/,
+  thai: /[\u0E00-\u0E7F]/,
+};
+
+const detectScriptMismatch = (text, selectedLang) => {
+  if (!text || !selectedLang || selectedLang === 'auto') return null;
+  const expectedScript = LANG_SCRIPT_MAP[selectedLang];
+  if (!expectedScript) return null;
+  const textScripts = Object.entries(SCRIPT_REGEX).filter(([, r]) => r.test(text));
+  if (!textScripts.length) return null;
+  const dominantScript = textScripts[0][0];
+  if (dominantScript !== expectedScript) {
+    return { mismatch: true, textScript: dominantScript, expectedScript };
+  }
+  return null;
+};
+
+// ─── POST /api/translate ─────────────────────────────────────────────────────
 router.post('/', async (req, res, next) => {
   try {
     const { text, sourceLang, targetLang, sourceLangName, targetLangName, saveHistory } = req.body;
@@ -152,15 +128,14 @@ router.post('/', async (req, res, next) => {
     if (!text?.trim()) return res.status(400).json({ success: false, error: 'Text is required' });
     if (!targetLang) return res.status(400).json({ success: false, error: 'Target language is required' });
 
-    // Agar source language manually select ki hai (auto nahi) toh validate karo
+    // Script mismatch check (fast, no API)
     if (sourceLang && sourceLang !== 'auto') {
-      const detectedLangCode = await detectLanguage(text.trim());
-      if (detectedLangCode && detectedLangCode !== sourceLang) {
+      const mismatch = detectScriptMismatch(text.trim(), sourceLang);
+      if (mismatch) {
         return res.status(400).json({
           success: false,
-          error: `Language mismatch! You selected "${sourceLang}" but the text appears to be in "${detectedLangCode}". Please select the correct source language or use "Auto Detect".`,
-          detectedLang: detectedLangCode,
-          selectedLang: sourceLang,
+          error: `Please select the correct language. Text script doesn't match selected source language.`,
+          mismatch: true,
         });
       }
     }
@@ -169,30 +144,34 @@ router.post('/', async (req, res, next) => {
     let detectedLang = sourceLang || 'auto';
     let usedEngine = '';
 
+    // ── Primary: Pravahai (AICTE) ──
     try {
-      const usePivot = PIVOT_LANGS.has(sourceLang) || PIVOT_LANGS.has(targetLang);
-      let result;
-
-      if (usePivot && sourceLang !== 'en' && targetLang !== 'en') {
-        result = await translateWithPivot(text.trim(), sourceLang || 'auto', targetLang);
-        console.log(`[Langbly Pivot] ${sourceLang}→en→${targetLang}: OK`);
-      } else {
-        result = await translateWithLangbly(text.trim(), sourceLang, targetLang);
-        console.log(`[Langbly] ${sourceLang}→${targetLang}: OK`);
-      }
-
+      const result = await translateWithPravahai(text.trim(), targetLang);
       translatedText = result.text;
-      detectedLang = result.detectedLang;
-      usedEngine = 'langbly';
-    } catch (err) {
-      console.log(`[Langbly] Failed: ${err.message} — MyMemory fallback`);
+      usedEngine = 'pravahai';
+      console.log(`[Pravahai] →${targetLang}: OK`);
+    } catch (pravahaiErr) {
+      console.log(`[Pravahai] Failed: ${pravahaiErr.message} — Langbly fallback`);
+
+      // ── Fallback 1: Langbly ──
       try {
-        const result = await translateWithMyMemory(text.trim(), sourceLang, targetLang);
+        const result = await translateWithLangbly(text.trim(), sourceLang, targetLang);
         translatedText = result.text;
         detectedLang = result.detectedLang;
-        usedEngine = 'mymemory';
-      } catch (mmErr) {
-        return res.status(503).json({ success: false, error: 'Translation unavailable. Try again.' });
+        usedEngine = 'langbly';
+        console.log(`[Langbly] ${sourceLang}→${targetLang}: OK`);
+      } catch (langblyErr) {
+        console.log(`[Langbly] Failed: ${langblyErr.message} — MyMemory fallback`);
+
+        // ── Fallback 2: MyMemory ──
+        try {
+          const result = await translateWithMyMemory(text.trim(), sourceLang, targetLang);
+          translatedText = result.text;
+          detectedLang = result.detectedLang;
+          usedEngine = 'mymemory';
+        } catch (mmErr) {
+          return res.status(503).json({ success: false, error: 'Translation unavailable. Try again.' });
+        }
       }
     }
 
@@ -211,22 +190,19 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-// POST /api/translate/detect
+// ─── POST /api/translate/detect ──────────────────────────────────────────────
 router.post('/detect', async (req, res, next) => {
   try {
     const { text } = req.body;
     if (!text?.trim()) return res.status(400).json({ success: false, error: 'Text is required' });
 
-    // Use Langbly to detect language
     try {
       const r = await axios.post(LANGBLY_URL, null, {
         params: { q: text.trim().slice(0, 100), target: 'en', key: LANGBLY_KEY },
         timeout: 8000,
       });
       const detected = r.data?.data?.translations?.[0]?.detectedSourceLanguage;
-      if (detected) {
-        return res.json({ success: true, detectedLang: detected, confidence: 1 });
-      }
+      if (detected) return res.json({ success: true, detectedLang: detected, confidence: 1 });
     } catch (e) {}
 
     return res.json({ success: true, detectedLang: 'auto', confidence: 0 });
