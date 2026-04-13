@@ -10,139 +10,114 @@ const AICTE_TTS_URL = 'https://pravahai.aicte-india.org/audiobook/api/tts/synthe
 const AUDIO_DIR = path.join(__dirname, '../audio_cache');
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
 
-// ─── AICTE TTS Emotion Mapping ───────────────────────────────────────────────
-// Valid emotion IDs from https://pravahai.aicte-india.org/audiobook/api/tts/emotions
-const AICTE_EMOTION_CONFIG = {
-  love:  { emotion: 'loving',    gender: 'female', speed: 0.90, pitch: 2  },  // pyar se, soft warm female
-  sad:   { emotion: 'melancholic', gender: 'female', speed: 0.85, pitch: -1 }, // dukhi, emotional female
-  happy: { emotion: 'joyful',    gender: 'male',   speed: 1.05, pitch: 2  },  // khushi, energetic male
-  angry: { emotion: 'furious',   gender: 'male',   speed: 1.10, pitch: -3 },  // tej gussa, dominant male
+// ─── AICTE TTS Config ────────────────────────────────────────────────────────
+const AICTE_CONFIG = {
+  love:  { emotion: 'loving',     gender: 'female', speed: 0.88, pitch: 2  },
+  sad:   { emotion: 'melancholic', gender: 'female', speed: 0.82, pitch: -2 },
+  happy: { emotion: 'joyful',     gender: 'male',   speed: 1.08, pitch: 3  },
+  angry: { emotion: 'furious',    gender: 'male',   speed: 1.12, pitch: -4 },
 };
 
 // ─── ElevenLabs Config (fallback) ────────────────────────────────────────────
-// Female voice for Love & Sad — Male voice for Happy & Angry
-const ELEVENLABS_CONFIG = {
+// Sarah (female) = Love & Sad | Adam (male) = Happy & Angry
+const EL_CONFIG = {
   love: {
-    voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah — soft, warm female
-    voice_settings: { stability: 0.3, similarity_boost: 0.85, style: 0.75, use_speaker_boost: true },
-    ttsRate: 0.45, ttsPitch: 1.1,
+    voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah
+    // Soft, warm, caring — low stability = more expressive, high style = emotional
+    voice_settings: { stability: 0.20, similarity_boost: 0.90, style: 0.80, use_speaker_boost: true },
+    ttsRate: 0.44, ttsPitch: 1.15,
   },
   sad: {
-    voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah — soft female, emotional
-    voice_settings: { stability: 0.3, similarity_boost: 0.85, style: 0.75, use_speaker_boost: true },
-    ttsRate: 0.42, ttsPitch: 0.92,
+    voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah
+    // Slow, heavy, emotional — very low stability = maximum emotion
+    voice_settings: { stability: 0.15, similarity_boost: 0.88, style: 0.85, use_speaker_boost: true },
+    ttsRate: 0.38, ttsPitch: 0.88,
   },
   happy: {
-    voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam — energetic male
-    voice_settings: { stability: 0.3, similarity_boost: 0.85, style: 0.75, use_speaker_boost: true },
-    ttsRate: 0.50, ttsPitch: 1.1,
+    voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam
+    // Energetic, cheerful, lively — low stability = upbeat variation
+    voice_settings: { stability: 0.22, similarity_boost: 0.85, style: 0.82, use_speaker_boost: true },
+    ttsRate: 0.52, ttsPitch: 1.18,
   },
   angry: {
-    voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam — deep dominant male
-    voice_settings: { stability: 0.3, similarity_boost: 0.85, style: 0.75, use_speaker_boost: true },
-    ttsRate: 0.44, ttsPitch: 0.78,
+    voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam
+    // Strong, sharp, aggressive — very low stability = intense delivery
+    voice_settings: { stability: 0.10, similarity_boost: 0.92, style: 0.90, use_speaker_boost: true },
+    ttsRate: 0.48, ttsPitch: 0.72,
   },
 };
 
-// Language code → AICTE TTS language code (short 2-letter)
+// Language code → AICTE short code
 const AICTE_LANG_MAP = {
-  'hi-IN': 'hi', 'en-IN': 'en', 'en-US': 'en', 'en-GB': 'en',
-  'bn-IN': 'bn', 'ta-IN': 'ta', 'te-IN': 'te', 'mr-IN': 'mr',
-  'gu-IN': 'gu', 'kn-IN': 'kn', 'ml-IN': 'ml', 'pa-IN': 'pa',
-  'as-IN': 'as', 'or-IN': 'or', 'ur-IN': 'ur',
   hi: 'hi', en: 'en', bn: 'bn', ta: 'ta', te: 'te', mr: 'mr',
   gu: 'gu', kn: 'kn', ml: 'ml', pa: 'pa', as: 'as', or: 'or', ur: 'ur',
+  'hi-IN': 'hi', 'en-IN': 'en', 'en-US': 'en', 'bn-IN': 'bn',
+  'ta-IN': 'ta', 'te-IN': 'te', 'mr-IN': 'mr', 'gu-IN': 'gu',
+  'kn-IN': 'kn', 'ml-IN': 'ml', 'pa-IN': 'pa',
 };
 
-const getAicteLang = (targetLang) => {
-  if (!targetLang) return 'hi';
-  return AICTE_LANG_MAP[targetLang] || AICTE_LANG_MAP[targetLang?.split('-')[0]] || 'hi';
+const getAicteLang = (lang) => {
+  if (!lang) return 'hi';
+  return AICTE_LANG_MAP[lang] || AICTE_LANG_MAP[lang.split('-')[0]] || 'hi';
 };
 
 // ─── AICTE TTS ───────────────────────────────────────────────────────────────
-const generateWithAicteTTS = async (text, emotion, targetLang) => {
-  const cfg = AICTE_EMOTION_CONFIG[emotion];
-  if (!cfg) throw new Error('AICTE TTS: unsupported emotion');
+const generateWithAicte = async (text, emotion, targetLang) => {
+  const cfg = AICTE_CONFIG[emotion];
+  if (!cfg) throw new Error('Unsupported emotion');
 
-  const language = getAicteLang(targetLang);
-
-  const response = await axios.post(
+  const res = await axios.post(
     AICTE_TTS_URL,
-    {
-      text,
-      language,
-      gender: cfg.gender,
-      emotion: cfg.emotion,
-      speed: cfg.speed,
-      pitch: cfg.pitch,
-      model: 'full',
-    },
-    {
-      headers: { 'Content-Type': 'application/json' },
-      responseType: 'arraybuffer',
-      timeout: 30000,
-    }
+    { text, language: getAicteLang(targetLang), gender: cfg.gender, emotion: cfg.emotion, speed: cfg.speed, pitch: cfg.pitch, model: 'full' },
+    { headers: { 'Content-Type': 'application/json' }, responseType: 'arraybuffer', timeout: 12000 }
   );
 
   const filename = `emotion_${emotion}_${Date.now()}.wav`;
-  const filepath = path.join(AUDIO_DIR, filename);
-  fs.writeFileSync(filepath, Buffer.from(response.data));
+  fs.writeFileSync(path.join(AUDIO_DIR, filename), Buffer.from(res.data));
   return filename;
 };
 
-// ─── ElevenLabs TTS (fallback) ───────────────────────────────────────────────
+// ─── ElevenLabs TTS ──────────────────────────────────────────────────────────
 const generateWithElevenLabs = async (text, emotion) => {
-  const config = ELEVENLABS_CONFIG[emotion];
-  if (!config || !ELEVENLABS_API_KEY) throw new Error('ElevenLabs not configured');
+  const cfg = EL_CONFIG[emotion];
+  if (!cfg || !ELEVENLABS_API_KEY) throw new Error('ElevenLabs not configured');
 
-  const response = await axios.post(
-    `https://api.elevenlabs.io/v1/text-to-speech/${config.voice_id}`,
+  const res = await axios.post(
+    `https://api.elevenlabs.io/v1/text-to-speech/${cfg.voice_id}`,
+    { text, model_id: 'eleven_multilingual_v2', voice_settings: cfg.voice_settings },
     {
-      text,
-      model_id: 'eleven_multilingual_v2',
-      voice_settings: config.voice_settings,
-    },
-    {
-      headers: {
-        'xi-api-key': ELEVENLABS_API_KEY,
-        'Content-Type': 'application/json',
-        Accept: 'audio/mpeg',
-      },
+      headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
       responseType: 'arraybuffer',
       timeout: 30000,
     }
   );
 
   const filename = `emotion_${emotion}_${Date.now()}.mp3`;
-  const filepath = path.join(AUDIO_DIR, filename);
-  fs.writeFileSync(filepath, Buffer.from(response.data));
+  fs.writeFileSync(path.join(AUDIO_DIR, filename), Buffer.from(res.data));
   return filename;
 };
 
-// ─── Cleanup old audio files ─────────────────────────────────────────────────
-const cleanupAudioCache = () => {
+// ─── Cleanup: keep last 6 files ──────────────────────────────────────────────
+const cleanupCache = () => {
   try {
     const files = fs.readdirSync(AUDIO_DIR)
       .filter(f => f.endsWith('.mp3') || f.endsWith('.wav'))
       .sort();
-    if (files.length > 20) {
-      files.slice(0, files.length - 20).forEach(f => {
-        try { fs.unlinkSync(path.join(AUDIO_DIR, f)); } catch (e) {}
+    if (files.length > 6) {
+      files.slice(0, files.length - 6).forEach(f => {
+        try { fs.unlinkSync(path.join(AUDIO_DIR, f)); } catch (_) {}
       });
     }
-  } catch (e) {}
+  } catch (_) {}
 };
 
 // ─── Serve audio ─────────────────────────────────────────────────────────────
 router.get('/audio/:filename', (req, res) => {
-  // Sanitize filename — no path traversal
   const filename = path.basename(req.params.filename);
   const filepath = path.resolve(AUDIO_DIR, filename);
   if (!fs.existsSync(filepath)) return res.status(404).json({ error: 'Not found' });
-  const isWav = filename.endsWith('.wav');
-  res.setHeader('Content-Type', isWav ? 'audio/wav' : 'audio/mpeg');
+  res.setHeader('Content-Type', filename.endsWith('.wav') ? 'audio/wav' : 'audio/mpeg');
   res.setHeader('Cache-Control', 'no-cache');
-  // sendFile requires absolute path
   res.sendFile(filepath);
 });
 
@@ -157,23 +132,20 @@ router.post('/rephrase', async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Invalid emotion' });
     }
 
-    const elConfig = ELEVENLABS_CONFIG[emotionKey];
+    const elCfg = EL_CONFIG[emotionKey];
     const emojis = { love: '❤️', sad: '😢', angry: '😡', happy: '😄' };
 
     let audioUrl = null;
     let usedEngine = null;
 
-    // Cleanup old files before generating new one
-    cleanupAudioCache();
-
     // ── Primary: AICTE TTS ──
     try {
-      const filename = await generateWithAicteTTS(text.trim(), emotionKey, targetLang);
+      const filename = await generateWithAicte(text.trim(), emotionKey, targetLang);
       audioUrl = `/api/emotion/audio/${filename}`;
       usedEngine = 'aicte';
       console.log(`[AICTE TTS] ${emotionKey} OK: ${filename}`);
-    } catch (aicteErr) {
-      console.log(`[AICTE TTS] Failed: ${aicteErr.message} — ElevenLabs fallback`);
+    } catch (e) {
+      console.log(`[AICTE TTS] Failed: ${e.message} — ElevenLabs fallback`);
 
       // ── Fallback: ElevenLabs ──
       try {
@@ -181,18 +153,21 @@ router.post('/rephrase', async (req, res, next) => {
         audioUrl = `/api/emotion/audio/${filename}`;
         usedEngine = 'elevenlabs';
         console.log(`[ElevenLabs] ${emotionKey} OK: ${filename}`);
-      } catch (elErr) {
-        console.log(`[ElevenLabs] Failed: ${elErr.message}`);
+      } catch (e2) {
+        console.log(`[ElevenLabs] Failed: ${e2.message}`);
       }
     }
+
+    // Cleanup AFTER generating — so new file is never deleted before serving
+    cleanupCache();
 
     return res.json({
       success: true,
       voiceText: text.trim(),
       audioUrl,
       engine: usedEngine,
-      ttsRate: elConfig.ttsRate,
-      ttsPitch: elConfig.ttsPitch,
+      ttsRate: elCfg.ttsRate,
+      ttsPitch: elCfg.ttsPitch,
       emotion: emotionKey,
       emoji: emojis[emotionKey],
     });
