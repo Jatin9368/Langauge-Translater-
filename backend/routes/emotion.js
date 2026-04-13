@@ -11,47 +11,58 @@ const EMOTION_CONFIG = {
   love: {
     voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah — soft, warm female
     voice_settings: {
-      stability: 0.45,         // balanced — natural warmth, not robotic
-      similarity_boost: 0.88,
-      style: 0.85,             // expressive but not over-dramatic
+      stability: 0.3,          // LOW — emotion aayega
+      similarity_boost: 0.85,  // voice natural rahe
+      style: 0.75,             // expression strong
       use_speaker_boost: true,
     },
-    ttsRate: 0.45, ttsPitch: 1.1, // natural pace, slightly warm
+    ttsRate: 0.45, ttsPitch: 1.1,
   },
   sad: {
     voice_id: 'EXAVITQu4vr4xnSDxMaL', // Sarah — soft female, emotional
     voice_settings: {
-      stability: 0.65,         // moderate — emotional but not too slow
-      similarity_boost: 0.85,
-      style: 0.80,             // clear sadness, natural
-      use_speaker_boost: false,
+      stability: 0.3,          // LOW — emotion aayega
+      similarity_boost: 0.85,  // voice natural rahe
+      style: 0.75,             // expression strong
+      use_speaker_boost: true,
     },
-    ttsRate: 0.42, ttsPitch: 0.92, // slightly slower, natural emotional pace
+    ttsRate: 0.42, ttsPitch: 0.92,
   },
   happy: {
     voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam — energetic male
     voice_settings: {
-      stability: 0.30,         // lively variation = cheerful energy
-      similarity_boost: 0.88,
-      style: 0.90,             // clearly happy, expressive
+      stability: 0.3,          // LOW — emotion aayega
+      similarity_boost: 0.85,  // voice natural rahe
+      style: 0.75,             // expression strong
       use_speaker_boost: true,
     },
-    ttsRate: 0.50, ttsPitch: 1.1, // natural energetic pace
+    ttsRate: 0.50, ttsPitch: 1.1,
   },
   angry: {
     voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam — deep dominant male
     voice_settings: {
-      stability: 0.12,         // very low = intense, powerful, dangerous
-      similarity_boost: 1.0,   // max character strength
-      style: 1.0,              // max — warning, authority, anger
+      stability: 0.3,          // LOW — emotion aayega
+      similarity_boost: 0.85,  // voice natural rahe
+      style: 0.75,             // expression strong
       use_speaker_boost: true,
     },
-    ttsRate: 0.44, ttsPitch: 0.78, // normal-slow pace, very deep pitch — powerful
+    ttsRate: 0.44, ttsPitch: 0.78,
   },
 };
 
 const AUDIO_DIR = path.join(__dirname, '../audio_cache');
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
+
+// Enhance text with emotion markers for better ElevenLabs expression
+function enhanceText(text, emotion) {
+  switch (emotion) {
+    case 'love':   return text + '... \u{1F496}';
+    case 'sad':    return text.replace(/\./g, '...') + '...';
+    case 'happy':  return text + '!! \uD83D\uDE04';
+    case 'angry':  return text.toUpperCase() + '!!';
+    default:       return text;
+  }
+}
 
 const generateAudio = async (text, emotion) => {
   const config = EMOTION_CONFIG[emotion];
@@ -117,7 +128,8 @@ router.post('/rephrase', async (req, res, next) => {
     let useElevenLabs = false;
 
     try {
-      const filename = await generateAudio(text.trim(), emotionKey);
+      const enhancedText = enhanceText(text.trim(), emotionKey);
+      const filename = await generateAudio(enhancedText, emotionKey);
       audioUrl = `/api/emotion/audio/${filename}`;
       useElevenLabs = true;
       console.log(`[ElevenLabs] ${emotionKey} OK: ${filename}`);
