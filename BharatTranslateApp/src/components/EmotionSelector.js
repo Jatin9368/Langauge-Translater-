@@ -6,7 +6,7 @@ import {
 import Tts from 'react-native-tts';
 import Video from 'react-native-video';
 import { useTheme } from '../ThemeContext';
-import { rephraseEmotion } from '../api';
+import { rephraseEmotion, BASE_URL } from '../api';
 
 const EMOTIONS = [
   { key: 'love',  label: 'Love',  emoji: '❤️',  color: '#E91E63' },
@@ -17,9 +17,11 @@ const EMOTIONS = [
 
 const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
   const { theme } = useTheme();
-  const styles = makeStyles(theme);  const [speakingEmotion, setSpeakingEmotion] = useState(null);
+  const styles = makeStyles(theme);
+  const [speakingEmotion, setSpeakingEmotion] = useState(null);
   const [loadingEmotion, setLoadingEmotion] = useState(null);
-  const [audioUri, setAudioUri] = useState(null);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const videoRef = useRef(null);
 
   useEffect(() => {
     const ttsFinish = Tts.addEventListener('tts-finish', () => setSpeakingEmotion(null));
@@ -29,7 +31,7 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
   }, []);
 
   const stopAll = () => {
-    setAudioUri(null);
+    setAudioUrl(null);
     try { Tts.stop(); } catch (_) {}
     setSpeakingEmotion(null);
   };
@@ -39,8 +41,12 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
       if (locale) await Tts.setDefaultLanguage(locale);
       await Tts.setDefaultRate(ttsRate || 0.5);
       await Tts.setDefaultPitch(ttsPitch || 1.0);
+      console.log(`[TTS] Speaking: "${ttsText.slice(0, 30)}"`);
       Tts.speak(ttsText);
-    } catch (_) { setSpeakingEmotion(null); }
+    } catch (e) {
+      console.warn('[TTS] Error:', e.message);
+      setSpeakingEmotion(null);
+    }
   };
 
   const handlePress = async (emotion) => {
@@ -49,10 +55,17 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
       return;
     }
 
-    if (speakingEmotion === emotion.key) { stopAll(); return; }
+    // Same emotion → stop
+    if (speakingEmotion === emotion.key) {
+      stopAll();
+      return;
+    }
+
+    // Different emotion playing → stop first
     if (speakingEmotion) stopAll();
 
     setLoadingEmotion(emotion.key);
+    console.log(`[EmotionSelector] Button pressed: ${emotion.key}`);
 
     try {
       const result = await rephraseEmotion({
@@ -61,17 +74,22 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
         targetLang: targetLang || 'hi',
       });
 
+      console.log(`[EmotionSelector] API result: engine=${result.engine} audioUrl=${result.audioUrl}`);
+
       setSpeakingEmotion(emotion.key);
 
-      if (result.audioBase64) {
-        // data URI — react-native-video plays it directly
-        const mime = result.audioMime || 'audio/wav';
-        setAudioUri(`data:${mime};base64,${result.audioBase64}`);
+      if (result.audioUrl) {
+        // Play from backend URL
+        const fullUrl = `${BASE_URL}${result.audioUrl}?t=${Date.now()}`;
+        console.log(`[EmotionSelector] Playing URL: ${fullUrl}`);
+        setAudioUrl(fullUrl);
       } else {
-        // AICTE failed — device TTS fallback
+        // No audio → device TTS fallback
+        console.log('[EmotionSelector] No audioUrl, using device TTS');
         await playTTS(text.trim(), result.ttsRate, result.ttsPitch);
       }
     } catch (err) {
+      console.warn('[EmotionSelector] Error:', err.message);
       setSpeakingEmotion(null);
       Alert.alert('Error', err.message || 'Could not play voice.');
     } finally {
@@ -81,21 +99,30 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
 
   return (
     <View>
-      {/* Hidden audio player — renders nothing visible */}
-      {audioUri && (
+      {/* Hidden Video player for audio playback */}
+      {audioUrl ? (
         <Video
-          source={{ uri: audioUri }}
-          audioOnly
+          ref={videoRef}
+          source={{ uri: audioUrl }}
+          audioOnly={true}
           playInBackground={false}
-          style={{ width: 0, height: 0 }}
-          onEnd={() => { setSpeakingEmotion(null); setAudioUri(null); }}
-          onError={(e) => {
-            console.warn('[Video] audio error:', e.error);
+          playWhenInactive={false}
+          style={{ width: 0, height: 0, position: 'absolute' }}
+          onLoad={() => console.log('[Video] Audio loaded, playing...')}
+          onEnd={() => {
+            console.log('[Video] Audio ended');
             setSpeakingEmotion(null);
-            setAudioUri(null);
+            setAudioUrl(null);
+          }}
+          onError={(e) => {
+            console.warn('[Video] Error:', JSON.stringify(e));
+            setSpeakingEmotion(null);
+            setAudioUrl(null);
+            // Fallback to TTS on video error
+            playTTS(text?.trim() || '', 0.5, 1.0);
           }}
         />
-      )}
+      ) : null}
 
       <View style={styles.row}>
         {EMOTIONS.map((emotion) => {
