@@ -1,28 +1,80 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import Tts from 'react-native-tts';
+import TrackPlayer, { State, usePlaybackState, Event } from 'react-native-track-player';
 import { useTheme } from '../ThemeContext';
 import { rephraseEmotion } from '../api';
 
+const BASE_URL = 'http://localhost:5000';
+
 const EMOTIONS = [
-  { key: 'love',  label: 'Love',  emoji: '\u2764\uFE0F', color: '#E91E63' },
-  { key: 'sad',   label: 'Sad',   emoji: '\uD83D\uDE22', color: '#5C6BC0' },
-  { key: 'angry', label: 'Angry', emoji: '\uD83D\uDE21', color: '#F44336' },
-  { key: 'happy', label: 'Happy', emoji: '\uD83D\uDE04', color: '#FFC107' },
+  { key: 'love',  label: 'Love',  emoji: '❤️',  color: '#E91E63' },
+  { key: 'sad',   label: 'Sad',   emoji: '😢', color: '#5C6BC0' },
+  { key: 'angry', label: 'Angry', emoji: '😡', color: '#F44336' },
+  { key: 'happy', label: 'Happy', emoji: '😄', color: '#FFC107' },
 ];
+
+let playerReady = false;
+
+const setupPlayer = async () => {
+  if (playerReady) return;
+  try {
+    await TrackPlayer.setupPlayer({ autoHandleInterruptions: true });
+    playerReady = true;
+  } catch (e) {
+    // Already setup
+    playerReady = true;
+  }
+};
 
 const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
   const { theme } = useTheme();
   const styles = makeStyles(theme);
+  const playbackState = usePlaybackState();
   const [speakingEmotion, setSpeakingEmotion] = useState(null);
   const [loadingEmotion, setLoadingEmotion] = useState(null);
+  const currentEmotionRef = useRef(null);
 
   useEffect(() => {
-    const f = Tts.addEventListener('tts-finish', () => setSpeakingEmotion(null));
-    const c = Tts.addEventListener('tts-cancel', () => setSpeakingEmotion(null));
-    const e = Tts.addEventListener('tts-error', () => setSpeakingEmotion(null));
+    setupPlayer();
+
+    // TTS fallback listeners
+    const f = Tts.addEventListener('tts-finish', () => {
+      setSpeakingEmotion(null);
+      currentEmotionRef.current = null;
+    });
+    const c = Tts.addEventListener('tts-cancel', () => {
+      setSpeakingEmotion(null);
+      currentEmotionRef.current = null;
+    });
+    const e = Tts.addEventListener('tts-error', () => {
+      setSpeakingEmotion(null);
+      currentEmotionRef.current = null;
+    });
+
     return () => { f.remove(); c.remove(); e.remove(); };
   }, []);
+
+  // Watch TrackPlayer state — when ended, reset speaking
+  useEffect(() => {
+    if (
+      playbackState?.state === State.Ended ||
+      playbackState?.state === State.Stopped ||
+      playbackState?.state === State.None
+    ) {
+      if (currentEmotionRef.current) {
+        setSpeakingEmotion(null);
+        currentEmotionRef.current = null;
+      }
+    }
+  }, [playbackState]);
+
+  const stopAll = async () => {
+    try { await TrackPlayer.stop(); } catch (e) {}
+    try { await Tts.stop(); } catch (e) {}
+    setSpeakingEmotion(null);
+    currentEmotionRef.current = null;
+  };
 
   const handlePress = async (emotion) => {
     if (!text?.trim()) {
@@ -30,16 +82,14 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
       return;
     }
 
+    // If same emotion is playing — stop it
     if (speakingEmotion === emotion.key) {
-      await Tts.stop();
-      setSpeakingEmotion(null);
+      await stopAll();
       return;
     }
 
-    if (speakingEmotion) {
-      await Tts.stop();
-      setSpeakingEmotion(null);
-    }
+    // Stop any currently playing
+    if (speakingEmotion) await stopAll();
 
     setLoadingEmotion(emotion.key);
 
@@ -47,17 +97,42 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
       const result = await rephraseEmotion({
         text: text.trim(),
         emotion: emotion.key,
-        targetLang: targetLang || 'en',
+        targetLang: targetLang || 'hi',
       });
 
-      if (locale) await Tts.setDefaultLanguage(locale);
-      await Tts.setDefaultRate(result.ttsRate || 0.5);
-      await Tts.setDefaultPitch(result.ttsPitch || 1.0);
-
       setSpeakingEmotion(emotion.key);
-      Tts.speak(text.trim());
+      currentEmotionRef.current = emotion.key;
+
+      if (result.audioUrl) {
+        // Play audio from backend (AICTE TTS or ElevenLabs)
+        const fullUrl = `${BASE_URL}${result.audioUrl}`;
+        try {
+          await TrackPlayer.reset();
+          await TrackPlayer.add({
+            id: `emotion_${emotion.key}_${Date.now()}`,
+            url: fullUrl,
+            title: emotion.label,
+            artist: 'Anuvadini',
+          });
+          await TrackPlayer.play();
+        } catch (playerErr) {
+          console.log('TrackPlayer error, TTS fallback:', playerErr.message);
+          // Fallback to device TTS
+          if (locale) await Tts.setDefaultLanguage(locale);
+          await Tts.setDefaultRate(result.ttsRate || 0.5);
+          await Tts.setDefaultPitch(result.ttsPitch || 1.0);
+          Tts.speak(text.trim());
+        }
+      } else {
+        // No audio URL — use device TTS
+        if (locale) await Tts.setDefaultLanguage(locale);
+        await Tts.setDefaultRate(result.ttsRate || 0.5);
+        await Tts.setDefaultPitch(result.ttsPitch || 1.0);
+        Tts.speak(text.trim());
+      }
     } catch (err) {
       setSpeakingEmotion(null);
+      currentEmotionRef.current = null;
       Alert.alert('Error', err.message || 'Could not play voice.');
     } finally {
       setLoadingEmotion(null);
@@ -84,7 +159,7 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
             {isLoading ? (
               <ActivityIndicator size="small" color={emotion.color} />
             ) : (
-              <Text style={styles.emoji}>{isSpeaking ? '\u23F9\uFE0F' : emotion.emoji}</Text>
+              <Text style={styles.emoji}>{isSpeaking ? '⏹️' : emotion.emoji}</Text>
             )}
             <Text style={[styles.label, { color: isSpeaking ? '#fff' : emotion.color }]}>
               {isLoading ? '...' : isSpeaking ? 'Stop' : emotion.label}
