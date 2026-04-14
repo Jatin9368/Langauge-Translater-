@@ -134,17 +134,17 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
               style={[
                 styles.btn,
                 { borderColor: emotion.color },
-                isSpeaking && { backgroundColor: emotion.color },
+                (isSpeaking || isLoading) && { backgroundColor: emotion.color },
                 disabled && styles.btnDisabled,
               ]}
               onPress={() => handlePress(emotion)}
               disabled={disabled || !!loadingEmotion}
             >
               {isLoading
-                ? <ActivityIndicator size="small" color={emotion.color} />
+                ? <ActivityIndicator size="small" color="#fff" />
                 : <Text style={styles.emoji}>{isSpeaking ? '⏹️' : emotion.emoji}</Text>
               }
-              <Text style={[styles.label, { color: isSpeaking ? '#fff' : emotion.color }]}>
+              <Text style={[styles.label, { color: (isSpeaking || isLoading) ? '#fff' : emotion.color }]}>
                 {isLoading ? '...' : isSpeaking ? 'Stop' : emotion.label}
               </Text>
             </TouchableOpacity>

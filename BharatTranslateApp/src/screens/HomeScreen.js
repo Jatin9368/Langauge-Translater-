@@ -8,7 +8,6 @@ import Voice from '@react-native-voice/voice';
 import { useTheme } from '../ThemeContext';
 import LanguagePicker from '../components/LanguagePicker';
 import EmotionSelector from '../components/EmotionSelector';
-import TTSButton from '../components/TTSButton';
 import VibeCheckSection from '../components/VibeCheckSection';
 import { translateText } from '../api';
 import { SOURCE_LANGUAGES, TARGET_LANGUAGES, getLanguageByCode } from '../languages';
@@ -210,7 +209,6 @@ const HomeScreen = () => {
               </View>
               {outputText && (
                 <View style={s.outputActions}>
-                  <TTSButton text={outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="normal" />
                   <TouchableOpacity onPress={() => { Clipboard.setString(outputText); Alert.alert('Copied!'); }} style={s.actionBtn}>
                     <Text style={s.actionBtnTxt}>{'\uD83D\uDCCB'}</Text>
                   </TouchableOpacity>
@@ -226,7 +224,7 @@ const HomeScreen = () => {
           </Animated.View>
         )}
 
-        {/* â”€â”€ Emotion Voice â”€â”€ */}
+        {/* Emotion Voice */}
         {outputText && (
           <View style={s.section}>
             <Text style={s.sectionLabel}>EMOTION VOICE</Text>
@@ -234,7 +232,7 @@ const HomeScreen = () => {
           </View>
         )}
 
-        {/* â”€â”€ Vibe Check â”€â”€ */}
+        {/* Vibe Check */}
         {outputText && <VibeCheckSection outputText={outputText} targetLang={targetLang} />}
 
       </ScrollView>

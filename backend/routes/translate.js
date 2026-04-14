@@ -3,9 +3,7 @@ const axios = require('axios');
 const router = express.Router();
 const History = require('../models/History');
 
-const LANGBLY_KEY = process.env.LANGBLY_API_KEY;
-const LANGBLY_URL = 'https://api.langbly.com/language/translate/v2';
-const PRAVAHAI_URL = 'https://pravahai.aicte-india.org/api/translatebulk';
+const PRAVAHAI_URL = process.env.PRAVAHAI_URL || 'https://pravahai.aicte-india.org/api/translatebulk';
 
 // ─── Pravahai Language Code Mapping ─────────────────────────────────────────
 // App uses short codes (hi, ta, en...) → Pravahai needs (hi-IN, ta-IN, en-IN, fr-FO...)
@@ -50,20 +48,7 @@ const translateWithPravahai = async (text, targetLang) => {
   return { text: translated };
 };
 
-// ─── Langbly Translation (fallback) ─────────────────────────────────────────
-const translateWithLangbly = async (text, sourceLang, targetLang) => {
-  const params = { q: text, target: targetLang, key: LANGBLY_KEY };
-  if (sourceLang && sourceLang !== 'auto') params.source = sourceLang;
-  const res = await axios.post(LANGBLY_URL, null, { params, timeout: 15000 });
-  const translation = res.data?.data?.translations?.[0];
-  if (!translation?.translatedText) throw new Error('Empty Langbly response');
-  const t = translation.translatedText;
-  const badChars = (t.match(/[^\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFD]/g) || []).length;
-  if (t.length > 0 && badChars / t.length > 0.3) throw new Error('Garbled response');
-  return { text: t, detectedLang: translation.detectedSourceLanguage || sourceLang || 'auto' };
-};
-
-// ─── MyMemory Translation (last fallback) ───────────────────────────────────
+// ─── MyMemory Translation (fallback) ────────────────────────────────────────
 const translateWithMyMemory = async (text, sourceLang, targetLang) => {
   const src = (!sourceLang || sourceLang === 'auto') ? 'en' : sourceLang;
   const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${src}|${targetLang}`;
@@ -151,27 +136,16 @@ router.post('/', async (req, res, next) => {
       usedEngine = 'pravahai';
       console.log(`[Pravahai] →${targetLang}: OK`);
     } catch (pravahaiErr) {
-      console.log(`[Pravahai] Failed: ${pravahaiErr.message} — Langbly fallback`);
+      console.log(`[Pravahai] Failed: ${pravahaiErr.message} — MyMemory fallback`);
 
-      // ── Fallback 1: Langbly ──
+      // ── Fallback: MyMemory ──
       try {
-        const result = await translateWithLangbly(text.trim(), sourceLang, targetLang);
+        const result = await translateWithMyMemory(text.trim(), sourceLang, targetLang);
         translatedText = result.text;
         detectedLang = result.detectedLang;
-        usedEngine = 'langbly';
-        console.log(`[Langbly] ${sourceLang}→${targetLang}: OK`);
-      } catch (langblyErr) {
-        console.log(`[Langbly] Failed: ${langblyErr.message} — MyMemory fallback`);
-
-        // ── Fallback 2: MyMemory ──
-        try {
-          const result = await translateWithMyMemory(text.trim(), sourceLang, targetLang);
-          translatedText = result.text;
-          detectedLang = result.detectedLang;
-          usedEngine = 'mymemory';
-        } catch (mmErr) {
-          return res.status(503).json({ success: false, error: 'Translation unavailable. Try again.' });
-        }
+        usedEngine = 'mymemory';
+      } catch (mmErr) {
+        return res.status(503).json({ success: false, error: 'Translation unavailable. Try again.' });
       }
     }
 
@@ -195,16 +169,8 @@ router.post('/detect', async (req, res, next) => {
   try {
     const { text } = req.body;
     if (!text?.trim()) return res.status(400).json({ success: false, error: 'Text is required' });
-
-    try {
-      const r = await axios.post(LANGBLY_URL, null, {
-        params: { q: text.trim().slice(0, 100), target: 'en', key: LANGBLY_KEY },
-        timeout: 8000,
-      });
-      const detected = r.data?.data?.translations?.[0]?.detectedSourceLanguage;
-      if (detected) return res.json({ success: true, detectedLang: detected, confidence: 1 });
-    } catch (e) {}
-
+    
+    // Auto-detect always returns 'auto' without Langbly
     return res.json({ success: true, detectedLang: 'auto', confidence: 0 });
   } catch (err) {
     next(err);

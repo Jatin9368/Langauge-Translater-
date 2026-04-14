@@ -99,7 +99,6 @@ const VibeCheckSection = ({ outputText, targetLang }) => {
           {STYLES_CONFIG.map((cfg) => {
             const result = results[cfg.key];
             if (!result) return null;
-            const options = (result.options || [result.text]).slice(0, 2);
 
             return (
               <View key={cfg.key} style={[s.card, { borderLeftColor: cfg.accent }]}>
@@ -114,27 +113,31 @@ const VibeCheckSection = ({ outputText, targetLang }) => {
                   </View>
                 </View>
 
-                {/* Options */}
-                {options.map((opt, i) => (
-                  <View key={i} style={[s.optRow, i > 0 && s.optRowBorder]}>
-                    <View style={[s.dot, { backgroundColor: cfg.accent }]} />
-                    <Text style={s.optText} selectable>{opt}</Text>
-                    <View style={s.optActions}>
-                      <TouchableOpacity
-                        onPress={() => { Clipboard.setString(opt); Alert.alert('Copied!'); }}
-                        style={[s.optBtn, { borderColor: cfg.accent + '50' }]}
-                      >
-                        <Text style={[s.optBtnTxt, { color: cfg.accent }]}>Copy</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={async () => { try { await Share.share({ message: opt }); } catch (e) {} }}
-                        style={[s.optBtn, { borderColor: cfg.accent + '50' }]}
-                      >
-                        <Text style={[s.optBtnTxt, { color: cfg.accent }]}>Share</Text>
-                      </TouchableOpacity>
+                {/* Text — 3 options */}
+                <View style={s.textBox}>
+                  {(result.options && result.options.length > 0 ? result.options : [result.text]).map((opt, idx) => (
+                    <View key={idx} style={[s.optRow, idx > 0 && s.optRowBorder]}>
+                      <View style={[s.dot, { backgroundColor: cfg.accent }]} />
+                      <Text style={s.cardText} selectable>{opt}</Text>
                     </View>
-                  </View>
-                ))}
+                  ))}
+                </View>
+
+                {/* Actions */}
+                <View style={s.actions}>
+                  <TouchableOpacity
+                    onPress={() => { Clipboard.setString((result.options || [result.text]).join('\n')); Alert.alert('Copied!'); }}
+                    style={[s.actionBtn, { borderColor: cfg.accent + '50' }]}
+                  >
+                    <Text style={[s.actionBtnTxt, { color: cfg.accent }]}>Copy All</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={async () => { try { await Share.share({ message: (result.options || [result.text]).join('\n') }); } catch (e) {} }}
+                    style={[s.actionBtn, { borderColor: cfg.accent + '50' }]}
+                  >
+                    <Text style={[s.actionBtnTxt, { color: cfg.accent }]}>Share</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             );
           })}
@@ -183,11 +186,19 @@ const makeStyles = (theme, isDark) => StyleSheet.create({
   cardLabel: { fontSize: 15, fontWeight: '800' },
   cardDesc: { fontSize: 11, color: theme.colors.textSecondary, marginTop: 1 },
 
-  optRow: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    gap: 8, paddingTop: 10,
+  textBox: { backgroundColor: theme.colors.background, borderRadius: 10, padding: 10, marginBottom: 10 },
+  cardText: { fontSize: 14, color: theme.colors.text, lineHeight: 22, flex: 1 },
+  optRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 6 },
+  optRowBorder: { borderTopWidth: 1, borderTopColor: theme.colors.border },
+
+  actions: { flexDirection: 'row', gap: 6 },
+  actionBtn: {
+    flex: 1,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 8, borderWidth: 1,
+    alignItems: 'center',
   },
-  optRowBorder: { borderTopWidth: 1, borderTopColor: theme.colors.divider },
+  actionBtnTxt: { fontSize: 12, fontWeight: '700' },
   dot: { width: 6, height: 6, borderRadius: 3, marginTop: 7, flexShrink: 0 },
   optText: { flex: 1, fontSize: 14, color: theme.colors.text, lineHeight: 22 },
   optActions: { flexDirection: 'row', gap: 4, flexShrink: 0 },
