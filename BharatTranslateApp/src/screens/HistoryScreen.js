@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Alert, ActivityIndicator, RefreshControl,
+  Alert, ActivityIndicator, RefreshControl, Clipboard,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
@@ -10,16 +10,16 @@ import { fetchHistory, deleteHistoryItem, clearAllHistory } from '../api';
 const LIMIT = 20;
 
 const HistoryScreen = () => {
-  const { theme } = useTheme();
-  const styles = makeStyles(theme);
+  const { theme, isDark } = useTheme();
+  const s = makeStyles(theme, isDark);
 
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [items, setItems]           = useState([]);
+  const [loading, setLoading]       = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage]             = useState(1);
+  const [hasMore, setHasMore]       = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal]           = useState(0);
 
   const loadHistory = async (pageNum = 1, append = false) => {
     if (pageNum === 1) setLoading(true);
@@ -27,7 +27,7 @@ const HistoryScreen = () => {
     try {
       const result = await fetchHistory(pageNum, LIMIT);
       const newItems = result.data || [];
-      setItems((prev) => (append ? [...prev, ...newItems] : newItems));
+      setItems(prev => append ? [...prev, ...newItems] : newItems);
       setHasMore(result.pagination?.hasMore || false);
       setTotal(result.pagination?.total || 0);
       setPage(pageNum);
@@ -50,11 +50,9 @@ const HistoryScreen = () => {
         onPress: async () => {
           try {
             await deleteHistoryItem(id);
-            setItems((prev) => prev.filter((i) => i._id !== id));
-            setTotal((prev) => Math.max(0, prev - 1));
-          } catch (err) {
-            Alert.alert('Error', err.message);
-          }
+            setItems(prev => prev.filter(i => i._id !== id));
+            setTotal(prev => Math.max(0, prev - 1));
+          } catch (err) { Alert.alert('Error', err.message); }
         },
       },
     ]);
@@ -70,9 +68,7 @@ const HistoryScreen = () => {
           try {
             await clearAllHistory();
             setItems([]); setTotal(0); setHasMore(false);
-          } catch (err) {
-            Alert.alert('Error', err.message);
-          }
+          } catch (err) { Alert.alert('Error', err.message); }
         },
       },
     ]);
@@ -80,73 +76,106 @@ const HistoryScreen = () => {
 
   const formatDate = (d) => {
     try {
-      return new Date(d).toLocaleDateString('en-IN', {
-        day: 'numeric', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      });
+      const date = new Date(d);
+      const now = new Date();
+      const diff = now - date;
+      if (diff < 60000) return 'Just now';
+      if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+      if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+      return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     } catch { return d; }
   };
 
-  const renderItem = ({ item }) => (
-    <View style={styles.card}>
-      <View style={styles.cardTop}>
-        <View style={styles.langRow}>
-          <View style={styles.langBadge}>
-            <Text style={styles.langBadgeText}>{item.sourceLangName || item.sourceLang}</Text>
-          </View>
-          <Text style={styles.arrow}>→</Text>
-          <View style={[styles.langBadge, styles.langBadgeTarget]}>
-            <Text style={[styles.langBadgeText, styles.langBadgeTextTarget]}>
-              {item.targetLangName || item.targetLang}
-            </Text>
-          </View>
+  const renderItem = ({ item, index }) => (
+    <View style={s.card}>
+      {/* Top row — lang badges + delete */}
+      <View style={s.cardTop}>
+        <View style={s.langPill}>
+          <Text style={s.langFrom}>{item.sourceLangName || item.sourceLang}</Text>
+          <Text style={s.langArrow}>›</Text>
+          <Text style={s.langTo}>{item.targetLangName || item.targetLang}</Text>
         </View>
-        <TouchableOpacity onPress={() => handleDelete(item._id)} style={styles.deleteBtn}>
-          <Text style={styles.deleteBtnText}>🗑</Text>
+        <View style={s.cardTopRight}>
+          <Text style={s.timeText}>{formatDate(item.createdAt)}</Text>
+          <TouchableOpacity onPress={() => handleDelete(item._id)} style={s.deleteBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={s.deleteBtnText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Source text */}
+      <Text style={s.sourceText} numberOfLines={2}>{item.sourceText}</Text>
+
+      {/* Translated text */}
+      <View style={s.translatedBox}>
+        <Text style={s.translatedText} numberOfLines={3}>{item.translatedText}</Text>
+      </View>
+
+      {/* Actions */}
+      <View style={s.actions}>
+        <TouchableOpacity
+          style={s.actionBtn}
+          onPress={() => { Clipboard.setString(item.translatedText); Alert.alert('Copied!'); }}
+        >
+          <Text style={s.actionBtnTxt}>📋 Copy</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.actionBtn, s.actionBtnSecondary]}
+          onPress={() => { Clipboard.setString(item.sourceText); Alert.alert('Copied!'); }}
+        >
+          <Text style={[s.actionBtnTxt, s.actionBtnTxtSecondary]}>Copy Original</Text>
         </TouchableOpacity>
       </View>
-      <Text style={styles.sourceText} numberOfLines={2}>{item.sourceText}</Text>
-      <View style={styles.divider} />
-      <Text style={styles.translatedText} numberOfLines={3}>{item.translatedText}</Text>
-      <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
     </View>
   );
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
+    <View style={s.root}>
+      {/* Header */}
+      <View style={s.header}>
         <View>
-          <Text style={styles.headerTitle}>History</Text>
-          {total > 0 && <Text style={styles.headerCount}>{total} translations</Text>}
+          <Text style={s.headerTitle}>History</Text>
+          <Text style={s.headerSub}>{total > 0 ? `${total} translations` : 'No translations yet'}</Text>
         </View>
         {items.length > 0 && (
-          <TouchableOpacity onPress={handleClearAll} style={styles.clearBtn}>
-            <Text style={styles.clearBtnText}>Clear All</Text>
+          <TouchableOpacity onPress={handleClearAll} style={s.clearBtn}>
+            <Text style={s.clearBtnText}>🗑 Clear All</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {loading && !items.length ? (
-        <View style={styles.centered}>
+        <View style={s.centered}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={s.loadingText}>Loading history...</Text>
         </View>
       ) : (
         <FlatList
           data={items}
-          keyExtractor={(item) => item._id}
+          keyExtractor={item => item._id}
           renderItem={renderItem}
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>📜</Text>
-              <Text style={styles.emptyTitle}>No History Yet</Text>
-              <Text style={styles.emptyDesc}>Your translations will appear here.</Text>
+            <View style={s.emptyContainer}>
+              <Text style={s.emptyIcon}>📜</Text>
+              <Text style={s.emptyTitle}>No History Yet</Text>
+              <Text style={s.emptyDesc}>Your translations will appear here automatically.</Text>
             </View>
           }
-          ListFooterComponent={loadingMore ? <ActivityIndicator color={theme.colors.primary} style={{ padding: 20 }} /> : null}
+          ListFooterComponent={
+            loadingMore
+              ? <ActivityIndicator color={theme.colors.primary} style={{ padding: 20 }} />
+              : null
+          }
           onEndReached={() => { if (hasMore && !loadingMore) loadHistory(page + 1, true); }}
           onEndReachedThreshold={0.3}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadHistory(1, false); }} tintColor={theme.colors.primary} />}
-          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => { setRefreshing(true); loadHistory(1, false); }}
+              tintColor={theme.colors.primary}
+            />
+          }
+          contentContainerStyle={s.listContent}
           showsVerticalScrollIndicator={false}
         />
       )}
@@ -154,56 +183,92 @@ const HistoryScreen = () => {
   );
 };
 
-const makeStyles = (theme) =>
-  StyleSheet.create({
-    root: { flex: 1, backgroundColor: theme.colors.background },
-    header: {
-      flexDirection: 'row', justifyContent: 'space-between',
-      alignItems: 'flex-end', paddingHorizontal: 16,
-      paddingTop: 16, paddingBottom: 12,
-      borderBottomWidth: 1, borderBottomColor: theme.colors.border,
-    },
-    headerTitle: { fontSize: 22, fontWeight: '800', color: theme.colors.text },
-    headerCount: { fontSize: 13, color: theme.colors.textSecondary, marginTop: 2 },
-    clearBtn: {
-      paddingHorizontal: 14, paddingVertical: 7,
-      borderRadius: 10, backgroundColor: theme.dark ? '#2D1515' : '#FEE2E2',
-    },
-    clearBtnText: { fontSize: 13, color: theme.colors.error, fontWeight: '600' },
-    centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    listContent: { padding: 16, paddingBottom: 32, flexGrow: 1 },
-    card: {
-      backgroundColor: theme.colors.historyCard,
-      borderRadius: 16, borderWidth: 1,
-      borderColor: theme.colors.historyBorder,
-      padding: 14, marginBottom: 12,
-      shadowColor: theme.colors.shadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
-    },
-    cardTop: {
-      flexDirection: 'row', justifyContent: 'space-between',
-      alignItems: 'center', marginBottom: 10,
-    },
-    langRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    langBadge: {
-      backgroundColor: theme.colors.primaryLight,
-      borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
-    },
-    langBadgeTarget: { backgroundColor: theme.dark ? '#1A2744' : '#EEF2FF' },
-    langBadgeText: { fontSize: 12, color: theme.colors.primary, fontWeight: '600' },
-    langBadgeTextTarget: { color: theme.colors.primary },
-    arrow: { fontSize: 14, color: theme.colors.textSecondary },
-    deleteBtn: { padding: 6 },
-    deleteBtnText: { fontSize: 18 },
-    sourceText: { fontSize: 14, color: theme.colors.textSecondary, lineHeight: 20 },
-    divider: { height: 1, backgroundColor: theme.colors.divider, marginVertical: 8 },
-    translatedText: { fontSize: 15, color: theme.colors.text, lineHeight: 22, fontWeight: '500' },
-    dateText: { fontSize: 11, color: theme.colors.textPlaceholder, marginTop: 8, textAlign: 'right' },
-    emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
-    emptyIcon: { fontSize: 56, marginBottom: 16 },
-    emptyTitle: { fontSize: 20, fontWeight: '700', color: theme.colors.text, marginBottom: 8 },
-    emptyDesc: { fontSize: 15, color: theme.colors.textSecondary },
-  });
+const makeStyles = (theme, isDark) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: theme.colors.background },
+
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14,
+    borderBottomWidth: 1, borderBottomColor: theme.colors.border,
+  },
+  headerTitle: { fontSize: 26, fontWeight: '800', color: theme.colors.text, letterSpacing: -0.5 },
+  headerSub: { fontSize: 13, color: theme.colors.textSecondary, marginTop: 2 },
+  clearBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12,
+    backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : '#FEE2E2',
+  },
+  clearBtnText: { fontSize: 13, color: '#EF4444', fontWeight: '700' },
+
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingText: { fontSize: 14, color: theme.colors.textSecondary },
+
+  listContent: { padding: 16, paddingBottom: 40, flexGrow: 1 },
+
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 20, marginBottom: 14,
+    borderWidth: 1, borderColor: theme.colors.border,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: isDark ? 0.2 : 0.07,
+    shadowRadius: 8, elevation: 3,
+  },
+
+  cardTop: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10,
+    borderBottomWidth: 1, borderBottomColor: theme.colors.border,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+  },
+  langPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: theme.colors.primaryLight,
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+  },
+  langFrom: { fontSize: 12, fontWeight: '700', color: theme.colors.primary },
+  langArrow: { fontSize: 14, color: theme.colors.primary, fontWeight: '800' },
+  langTo: { fontSize: 12, fontWeight: '700', color: theme.colors.primary },
+  cardTopRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  timeText: { fontSize: 11, color: theme.colors.textSecondary },
+  deleteBtn: { padding: 2 },
+  deleteBtnText: { fontSize: 13, color: theme.colors.textSecondary },
+
+  sourceText: {
+    fontSize: 14, color: theme.colors.textSecondary,
+    lineHeight: 20, paddingHorizontal: 14, paddingTop: 12,
+  },
+
+  translatedBox: {
+    marginHorizontal: 14, marginTop: 8, marginBottom: 4,
+    backgroundColor: isDark ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.05)',
+    borderRadius: 12, padding: 10,
+    borderLeftWidth: 3, borderLeftColor: theme.colors.primary,
+  },
+  translatedText: {
+    fontSize: 16, color: theme.colors.text,
+    lineHeight: 24, fontWeight: '600',
+  },
+
+  actions: {
+    flexDirection: 'row', gap: 8,
+    paddingHorizontal: 14, paddingVertical: 12,
+  },
+  actionBtn: {
+    flex: 1, paddingVertical: 8, borderRadius: 10,
+    backgroundColor: theme.colors.primaryLight, alignItems: 'center',
+  },
+  actionBtnSecondary: {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+  },
+  actionBtnTxt: { fontSize: 13, color: theme.colors.primary, fontWeight: '700' },
+  actionBtnTxtSecondary: { color: theme.colors.textSecondary },
+
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, paddingHorizontal: 32 },
+  emptyIcon: { fontSize: 64, marginBottom: 20 },
+  emptyTitle: { fontSize: 22, fontWeight: '800', color: theme.colors.text, marginBottom: 10 },
+  emptyDesc: { fontSize: 15, color: theme.colors.textSecondary, textAlign: 'center', lineHeight: 22 },
+});
 
 export default HistoryScreen;

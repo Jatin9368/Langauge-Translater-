@@ -8,7 +8,7 @@ export const BASE_URL = 'http://localhost:5000'; // USB adb reverse se connect
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 20000,
+  timeout: 60000,
   headers: { 'Content-Type': 'application/json' },
 });
 
