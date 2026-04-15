@@ -79,13 +79,14 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
       setSpeakingEmotion(emotion.key);
 
       if (result.audioUrl) {
+        // Play from backend URL
         const fullUrl = `${BASE_URL}${result.audioUrl}?t=${Date.now()}`;
         console.log(`[EmotionSelector] Playing URL: ${fullUrl}`);
         setAudioUrl(fullUrl);
       } else {
-        // Device TTS — Groq rewritten voiceText use karo
-        console.log('[EmotionSelector] Using device TTS');
-        await playTTS(result.voiceText || text.trim(), result.ttsRate, result.ttsPitch);
+        // No audio → device TTS fallback
+        console.log('[EmotionSelector] No audioUrl, using device TTS');
+        await playTTS(text.trim(), result.ttsRate, result.ttsPitch);
       }
     } catch (err) {
       console.warn('[EmotionSelector] Error:', err.message);
@@ -133,17 +134,17 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
               style={[
                 styles.btn,
                 { borderColor: emotion.color },
-                (isSpeaking || isLoading) && { backgroundColor: emotion.color },
+                isSpeaking && { backgroundColor: emotion.color },
                 disabled && styles.btnDisabled,
               ]}
               onPress={() => handlePress(emotion)}
               disabled={disabled || !!loadingEmotion}
             >
               {isLoading
-                ? <ActivityIndicator size="small" color="#fff" />
+                ? <ActivityIndicator size="small" color={emotion.color} />
                 : <Text style={styles.emoji}>{isSpeaking ? '⏹️' : emotion.emoji}</Text>
               }
-              <Text style={[styles.label, { color: (isSpeaking || isLoading) ? '#fff' : emotion.color }]}>
+              <Text style={[styles.label, { color: isSpeaking ? '#fff' : emotion.color }]}>
                 {isLoading ? '...' : isSpeaking ? 'Stop' : emotion.label}
               </Text>
             </TouchableOpacity>

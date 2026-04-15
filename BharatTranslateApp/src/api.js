@@ -1,16 +1,14 @@
 import axios from 'axios';
+import { Alert } from 'react-native';
 
-// API Base URL - from environment or default
-// For development: Update your machine IP (replace with your actual IP)
+// Physical device (WiFi): apni machine ka IP daalo → ipconfig se check karo
 // Android Emulator: 'http://10.0.2.2:5000'
-// Physical Device: 'http://YOUR_MACHINE_IP:5000'
-// USB Debug: 'http://localhost:5000' (after: adb reverse tcp:5000 tcp:5000)
-
-export const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+// USB + adb reverse tcp:5000 tcp:5000: 'http://localhost:5000'
+export const BASE_URL = 'http://localhost:5000'; // USB adb reverse se connect
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 90000,
+  timeout: 20000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -64,11 +62,11 @@ export const rephraseEmotion = async ({ text, emotion, targetLang }) => {
   }
 };
 
-// ─── Vibe Check (Style Rephrase) ──────────────────────────────────────────────
+// ─── Style Rephrase ───────────────────────────────────────────────────────────
 
 export const rephraseStyle = async ({ text, targetLang }) => {
   try {
-    const res = await api.post('/api/vibe/rephrase', { text, targetLang });
+    const res = await api.post('/api/style/rephrase', { text, targetLang });
     return res.data;
   } catch (err) {
     throw err;
