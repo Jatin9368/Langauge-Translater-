@@ -84,9 +84,9 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
         console.log(`[EmotionSelector] Playing URL: ${fullUrl}`);
         setAudioUrl(fullUrl);
       } else {
-        // No audio → device TTS fallback
-        console.log('[EmotionSelector] No audioUrl, using device TTS');
-        await playTTS(text.trim(), result.ttsRate, result.ttsPitch);
+        // No audio → device TTS with correct locale
+        console.log(`[EmotionSelector] No audioUrl, using device TTS (${locale})`);
+        await playTTS(result.voiceText || text.trim(), result.ttsRate, result.ttsPitch);
       }
     } catch (err) {
       console.warn('[EmotionSelector] Error:', err.message);
