@@ -15,18 +15,29 @@ const EMOTIONS = [
   { key: 'happy', label: 'Happy', emoji: '😄', color: '#FFC107' },
 ];
 
+// Emotion → gender preference
+const EMOTION_GENDER = {
+  love:  'female', // soft female
+  sad:   'female', // soft female
+  happy: 'male',   // energetic male
+  angry: 'male',   // strong male
+};
+
 const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
   const { theme } = useTheme();
   const styles = makeStyles(theme);
   const [speakingEmotion, setSpeakingEmotion] = useState(null);
   const [loadingEmotion, setLoadingEmotion] = useState(null);
   const [audioUrl, setAudioUrl] = useState(null);
+  const [voices, setVoices] = useState([]);
   const videoRef = useRef(null);
 
   useEffect(() => {
     const ttsFinish = Tts.addEventListener('tts-finish', () => setSpeakingEmotion(null));
     const ttsCancel = Tts.addEventListener('tts-cancel', () => setSpeakingEmotion(null));
     const ttsError  = Tts.addEventListener('tts-error',  () => setSpeakingEmotion(null));
+    // Load available voices
+    Tts.voices().then(v => { setVoices(v || []); }).catch(() => {});
     return () => { ttsFinish.remove(); ttsCancel.remove(); ttsError.remove(); };
   }, []);
 
@@ -36,12 +47,29 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
     setSpeakingEmotion(null);
   };
 
-  const playTTS = async (ttsText, ttsRate, ttsPitch) => {
+  const setVoiceForEmotion = async (emotion, lang) => {
+    if (!voices.length) return;
+    const gender = EMOTION_GENDER[emotion] || 'female';
+    // Find voice matching locale and gender
+    const langPrefix = (lang || 'en').split('-')[0];
+    const match = voices.find(v =>
+      v.language?.toLowerCase().startsWith(langPrefix) &&
+      v.gender?.toLowerCase() === gender && !v.notInstalled
+    ) || voices.find(v =>
+      v.language?.toLowerCase().startsWith(langPrefix) && !v.notInstalled
+    );
+    if (match?.id) {
+      try { await Tts.setDefaultVoice(match.id); } catch (_) {}
+    }
+  };
+
+  const playTTS = async (ttsText, ttsRate, ttsPitch, emotion) => {
     try {
       if (locale) await Tts.setDefaultLanguage(locale);
+      await setVoiceForEmotion(emotion, locale);
       await Tts.setDefaultRate(ttsRate || 0.5);
       await Tts.setDefaultPitch(ttsPitch || 1.0);
-      console.log(`[TTS] Speaking: "${ttsText.slice(0, 30)}"`);
+      console.log(`[TTS] Speaking (${emotion}): "${ttsText.slice(0, 30)}"`);
       Tts.speak(ttsText);
     } catch (e) {
       console.warn('[TTS] Error:', e.message);
@@ -86,7 +114,7 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
       } else {
         // No audio → device TTS with correct locale
         console.log(`[EmotionSelector] No audioUrl, using device TTS (${locale})`);
-        await playTTS(result.voiceText || text.trim(), result.ttsRate, result.ttsPitch);
+        await playTTS(result.voiceText || text.trim(), result.ttsRate, result.ttsPitch, emotion.key);
       }
     } catch (err) {
       console.warn('[EmotionSelector] Error:', err.message);
