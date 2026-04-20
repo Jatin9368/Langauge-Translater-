@@ -9,7 +9,7 @@ import { fetchHistory, deleteHistoryItem, clearAllHistory } from '../api';
 
 const LIMIT = 20;
 
-const HistoryScreen = () => {
+const HistoryScreen = ({ navigation }) => {
   const { theme, isDark } = useTheme();
   const s = makeStyles(theme, isDark);
 
@@ -120,10 +120,17 @@ const HistoryScreen = () => {
           <Text style={s.actionBtnTxt}>📋 Copy</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[s.actionBtn, s.actionBtnSecondary]}
-          onPress={() => { Clipboard.setString(item.sourceText); Alert.alert('Copied!'); }}
+          style={[s.actionBtn, s.actionBtnRetranslate]}
+          onPress={() => navigation.navigate('Home', {
+            retranslate: {
+              text: item.sourceText,
+              sourceLang: item.sourceLang,
+              targetLang: item.targetLang,
+              translatedText: item.translatedText,
+            }
+          })}
         >
-          <Text style={[s.actionBtnTxt, s.actionBtnTxtSecondary]}>Copy Original</Text>
+          <Text style={[s.actionBtnTxt, s.actionBtnTxtRetranslate]}>🔄 Retranslate</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -262,8 +269,11 @@ const makeStyles = (theme, isDark) => StyleSheet.create({
   actionBtnSecondary: {
     backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
   },
+  actionBtnRetranslate: {
+    backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.08)',
+  },
   actionBtnTxt: { fontSize: 13, color: theme.colors.primary, fontWeight: '700' },
-  actionBtnTxtSecondary: { color: theme.colors.textSecondary },
+  actionBtnTxtRetranslate: { color: '#10B981' },
 
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, paddingHorizontal: 32 },
   emptyIcon: { fontSize: 64, marginBottom: 20 },

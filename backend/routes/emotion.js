@@ -32,8 +32,8 @@ const VOICES = {
   },
   indian: {
     love:  { id: 'faf0731e-dfb9-4cfc-8119-259a79b27e12', speed: 'slow'    }, // Riya
-    sad:   { id: '9626c31c-bec5-4cca-baa8-f8ba9e84c8bc', speed: 'slowest' }, // Jacqueline
-    angry: { id: '5ee9feff-1265-424a-9d7f-8e4d431a12c7', speed: 'fast'    }, // Ronald
+    sad:   { id: '209d9a43-03eb-40d8-a7b7-51a6d54c052f', speed: 'slowest' }, // Anita
+    angry: { id: 'fd2ada67-c2d9-4afe-b474-6386b87d8fc3', speed: 'fast'    }, // Inder
     happy: { id: 'faf0731e-dfb9-4cfc-8119-259a79b27e12', speed: 'fast'    }, // Riya
   },
   intl: {

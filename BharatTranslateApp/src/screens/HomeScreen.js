@@ -12,7 +12,7 @@ import VibeCheckSection from '../components/VibeCheckSection';
 import { translateText } from '../api';
 import { SOURCE_LANGUAGES, TARGET_LANGUAGES, getLanguageByCode } from '../languages';
 
-const HomeScreen = () => {
+const HomeScreen = ({ route }) => {
   const { theme, isDark, toggleTheme } = useTheme();
   const s = makeStyles(theme, isDark);
 
@@ -75,6 +75,22 @@ const HomeScreen = () => {
     Voice.onSpeechResults = (e) => { const r = e.value?.[0] || ''; if (r) setInputText(r); };
     return () => { Voice.destroy().then(Voice.removeAllListeners); };
   }, []);
+
+  // Handle retranslate from History
+  useEffect(() => {
+    const params = route?.params?.retranslate;
+    if (!params) return;
+    setInputText(params.text || '');
+    setSourceLang(params.sourceLang || 'auto');
+    setTargetLang(params.targetLang || 'hi');
+    setDetectedLang(null);
+    if (params.translatedText) {
+      setOutputWithHistory(params.translatedText);
+      Animated.spring(outputAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 8 }).start();
+    } else {
+      setOutputWithHistory('');
+    }
+  }, [route?.params?.retranslate]);
 
   const handleInputChange = (text) => {
     setInputText(text);
@@ -164,7 +180,6 @@ const HomeScreen = () => {
         <View style={s.header}>
           <View style={s.logoRow}>
             <Image source={require('../assets/logo.png')} style={s.logoImage} resizeMode="contain" />
-            <Image source={require('../assets/aicte_logo.png')} style={s.aicteImage} resizeMode="contain" />
           </View>
           <TouchableOpacity onPress={toggleTheme} style={s.themeBtn} activeOpacity={0.7}>
             <Text style={s.themeBtnTxt}>{isDark ? '☀️' : '🌙'}</Text>
@@ -325,8 +340,7 @@ const makeStyles = (theme, isDark) => StyleSheet.create({
   // Header
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  logoImage: { width: 140, height: 48 },
-  aicteImage: { width: 48, height: 48 },
+  logoImage: { width: 180, height: 64 },
   themeBtn: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
