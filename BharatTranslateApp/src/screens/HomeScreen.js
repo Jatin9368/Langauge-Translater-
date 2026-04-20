@@ -26,6 +26,46 @@ const HomeScreen = () => {
   const outputAnim = useRef(new Animated.Value(1)).current;
   const btnScale   = useRef(new Animated.Value(1)).current;
 
+  // Undo/Redo history for output text
+  const undoStack = useRef([]);
+  const redoStack = useRef([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  const handleReplace = (newText) => {
+    undoStack.current.push(outputText);
+    redoStack.current = [];
+    setCanUndo(true);
+    setCanRedo(false);
+    setOutputText(newText);
+  };
+
+  const handleUndo = () => {
+    if (!undoStack.current.length) return;
+    const prev = undoStack.current.pop();
+    redoStack.current.push(outputText);
+    setCanUndo(undoStack.current.length > 0);
+    setCanRedo(true);
+    setOutputText(prev);
+  };
+
+  const handleRedo = () => {
+    if (!redoStack.current.length) return;
+    const next = redoStack.current.pop();
+    undoStack.current.push(outputText);
+    setCanUndo(true);
+    setCanRedo(redoStack.current.length > 0);
+    setOutputText(next);
+  };
+
+  const setOutputWithHistory = (newText) => {
+    undoStack.current = [];
+    redoStack.current = [];
+    setCanUndo(false);
+    setCanRedo(false);
+    setOutputText(newText);
+  };
+
   const targetLangObj = getLanguageByCode(targetLang);
 
   useEffect(() => {
@@ -70,7 +110,7 @@ const HomeScreen = () => {
     if (!inputText.trim()) return;
     animateBtn();
     setTranslating(true);
-    setOutputText('');
+    setOutputWithHistory('');
     outputAnim.setValue(0);
     try {
       const result = await translateText({
@@ -78,7 +118,7 @@ const HomeScreen = () => {
         sourceLangName: getLanguageByCode(sourceLang)?.name || sourceLang,
         targetLangName: targetLangObj?.name || targetLang,
       });
-      setOutputText(result.translatedText || '');
+      setOutputWithHistory(result.translatedText || '');
       if (result.detectedLang && sourceLang === 'auto') {
         setDetectedLang(result.detectedLang);
         setSourceLang(result.detectedLang);
@@ -106,7 +146,8 @@ const HomeScreen = () => {
   };
 
   const handleClear = () => {
-    setInputText(''); setOutputText(''); setDetectedLang(null);
+    setInputText(''); setDetectedLang(null);
+    setOutputWithHistory('');
     outputAnim.setValue(0);
   };
 
@@ -228,6 +269,20 @@ const HomeScreen = () => {
               </View>
               {outputText && (
                 <View style={s.outputActions}>
+                  <TouchableOpacity
+                    onPress={handleUndo}
+                    disabled={!canUndo}
+                    style={[s.actionBtn, !canUndo && { opacity: 0.3 }]}
+                  >
+                    <Text style={s.actionBtnTxt}>↩️</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleRedo}
+                    disabled={!canRedo}
+                    style={[s.actionBtn, !canRedo && { opacity: 0.3 }]}
+                  >
+                    <Text style={s.actionBtnTxt}>↪️</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity onPress={() => { Clipboard.setString(outputText); Alert.alert('Copied!'); }} style={s.actionBtn}>
                     <Text style={s.actionBtnTxt}>📋</Text>
                   </TouchableOpacity>
@@ -256,7 +311,7 @@ const HomeScreen = () => {
         )}
 
         {/* ── Vibe Check ── */}
-        {outputText && <VibeCheckSection outputText={outputText} targetLang={targetLang} onReplace={(text) => setOutputText(text)} />}
+        {outputText && <VibeCheckSection outputText={outputText} targetLang={targetLang} onReplace={handleReplace} />}
 
       </ScrollView>
     </KeyboardAvoidingView>
