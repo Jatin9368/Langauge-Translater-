@@ -4,60 +4,81 @@ const path = require('path');
 const fs = require('fs');
 const router = express.Router();
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
 
 const AUDIO_DIR = path.join(__dirname, '../audio_cache');
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
 
-// ─── TTS defaults (device TTS fallback) ──────────────────────────────────────
 const TTS_DEFAULTS = {
-  love:  { ttsRate: 0.40, ttsPitch: 1.15 },
-  sad:   { ttsRate: 0.36, ttsPitch: 0.85 },
-  happy: { ttsRate: 0.54, ttsPitch: 1.20 },
-  angry: { ttsRate: 0.50, ttsPitch: 0.70 },
+  love:  { ttsRate: 0.42, ttsPitch: 1.08 },
+  sad:   { ttsRate: 0.34, ttsPitch: 0.85 },
+  happy: { ttsRate: 0.52, ttsPitch: 1.15 },
+  angry: { ttsRate: 0.48, ttsPitch: 0.75 },
 };
 
-// ─── Cartesia Voice IDs ───────────────────────────────────────────────────────
-const INDIAN_LANGS = new Set(['hi','bn','ta','te','mr','gu','kn','ml','pa','or','as','ur','ne','sa','mai','sat','ks','kok','sd','doi','mni','brx']);
+const INDIAN_LANGS = new Set([
+  'hi','bn','ta','te','mr','gu','kn','ml','pa','or',
+  'as','ur','ne','sa','mai','sat','ks','kok','sd','doi','mni','brx',
+]);
+
+const TELUGU_VOICE = '38bded0a-3ab4-42d1-8e47-2e0b6b10ced9';
 
 const VOICES = {
+  telugu: {
+    love:  { id: TELUGU_VOICE, speed: 'slow'    },
+    sad:   { id: TELUGU_VOICE, speed: 'slowest' },
+    angry: { id: TELUGU_VOICE, speed: 'fast'    },
+    happy: { id: TELUGU_VOICE, speed: 'fast'    },
+  },
   indian: {
-    love:  { id: '47f3bbb1-e98f-4e0c-92c5-5f0325e1e206', speed: 'slow'   }, // Neha
-    sad:   { id: 'a81fccdc-5595-4dfc-ae76-4de6a515b8a2', speed: 'slow'   },// prabhavati
-    angry: { id: '4877b818-c7fe-4c89-b1cf-eadf8e23da72', speed: 'normal' }, // Rohan
-    happy: [
-      { id: '910fb75e-1d20-4840-ac63-ac6b26a71bdc', speed: 'fast' },// boy
-      { id: '47f3bbb1-e98f-4e0c-92c5-5f0325e1e206', speed: 'fast' }, // girl
-    ],
+    love:  { id: 'faf0731e-dfb9-4cfc-8119-259a79b27e12', speed: 'slow'    }, // Riya
+    sad:   { id: '9626c31c-bec5-4cca-baa8-f8ba9e84c8bc', speed: 'slowest' }, // Jacqueline
+    angry: { id: '5ee9feff-1265-424a-9d7f-8e4d431a12c7', speed: 'fast'    }, // Ronald
+    happy: { id: 'faf0731e-dfb9-4cfc-8119-259a79b27e12', speed: 'fast'    }, // Riya
   },
   intl: {
-    love:  { id: '7ea5e9c2-b719-4dc3-b870-5ba5f14d31d8', speed: 'slow'   }, // arti
-    sad:   { id: 'f8f5f1b2-f02d-4d8e-a40d-fd850a487b3d', speed: 'slow'   }, // ananyia
-    angry: { id: '1259b7e3-cb8a-43df-9446-30971a46b8b0', speed: 'normal' }, // jr
-    happy: [
-      { id: '39d518b7-fd0b-4676-9b8b-29d64ff31e12', speed: 'fast' }, // Arnav
-      { id: '7ea5e9c2-b719-4dc3-b870-5ba5f14d31d8', speed: 'fast' }, // arti
-    ],
+    love:  { id: 'e07c00bc-4134-4eae-9ea4-1a55fb45746b', speed: 'slow'    }, // Brooke
+    sad:   { id: '9626c31c-bec5-4cca-baa8-f8ba9e84c8bc', speed: 'slowest' }, // Jacqueline
+    angry: { id: '5ee9feff-1265-424a-9d7f-8e4d431a12c7', speed: 'fast'    }, // Ronald
+    happy: { id: 'a167e0f3-df7e-4d52-a9c3-f949145efdab', speed: 'fast'    }, // Blake
   },
 };
 
 const getVoiceCfg = (lang, emotion) => {
-  const pool = INDIAN_LANGS.has(lang) ? VOICES.indian[emotion] : VOICES.intl[emotion];
-  if (Array.isArray(pool)) return pool[Math.floor(Math.random() * pool.length)];
-  return pool;
+  if (lang === 'te') return VOICES.telugu[emotion];
+  return INDIAN_LANGS.has(lang) ? VOICES.indian[emotion] : VOICES.intl[emotion];
 };
 
-// ─── Cartesia TTS ─────────────────────────────────────────────────────────────
 const generateWithCartesia = async (text, emotion, lang) => {
   const cfg = getVoiceCfg(lang, emotion);
   if (!cfg || !CARTESIA_API_KEY) throw new Error('Cartesia not configured');
 
-  console.log(`[Cartesia] ${emotion}|${lang}|voice=${cfg.id}`);
+  // Emotion controls for natural feel
+  const emotionControls = {
+    love:  { speed: cfg.speed, emotion: ['positivity:high', 'curiosity:low'] },
+    sad:   { speed: cfg.speed, emotion: ['sadness:high', 'positivity:low']   },
+    angry: { speed: cfg.speed, emotion: ['anger:high', 'positivity:low']     },
+    happy: { speed: cfg.speed, emotion: ['positivity:high', 'surprise:low']  },
+  };
+
+  console.log(`[Cartesia] ${emotion}|${lang}|voice=${cfg.id}|speed=${cfg.speed}`);
   const res = await axios.post(
     'https://api.cartesia.ai/tts/bytes',
-    { model_id: 'sonic-3', transcript: text, voice: { mode: 'id', id: cfg.id, __experimental_controls: { speed: cfg.speed } }, output_format: { container: 'mp3', encoding: 'mp3', sample_rate: 44100 } },
-    { headers: { 'x-api-key': CARTESIA_API_KEY, 'Cartesia-Version': '2026-03-01', 'Content-Type': 'application/json' }, responseType: 'arraybuffer', timeout: 25000 }
+    {
+      model_id: 'sonic-3',
+      transcript: text,
+      voice: {
+        mode: 'id',
+        id: cfg.id,
+        __experimental_controls: emotionControls[emotion],
+      },
+      output_format: { container: 'mp3', encoding: 'mp3', sample_rate: 44100 },
+    },
+    {
+      headers: { 'x-api-key': CARTESIA_API_KEY, 'Cartesia-Version': '2026-03-01', 'Content-Type': 'application/json' },
+      responseType: 'arraybuffer',
+      timeout: 25000,
+    }
   );
 
   if (!res.data || res.data.byteLength < 100) throw new Error('Cartesia: empty response');
@@ -67,39 +88,6 @@ const generateWithCartesia = async (text, emotion, lang) => {
   return filename;
 };
 
-// ─── Language names ───────────────────────────────────────────────────────────
-const LANG_NAMES = {
-  hi:'Hindi', bn:'Bengali', ta:'Tamil', te:'Telugu', mr:'Marathi',
-  gu:'Gujarati', kn:'Kannada', ml:'Malayalam', pa:'Punjabi', ur:'Urdu',
-  or:'Odia', as:'Assamese', ne:'Nepali', en:'English', fr:'French',
-  de:'German', es:'Spanish', ja:'Japanese', ko:'Korean', ar:'Arabic',
-  ru:'Russian', 'zh-CN':'Chinese', pt:'Portuguese', it:'Italian', tr:'Turkish', nl:'Dutch',
-};
-
-// ─── Groq Emotion Rewrite ─────────────────────────────────────────────────────
-const GROQ_PROMPTS = {
-  love:  (lang, text) => `You are a voice script writer. Add soft, warm, romantic emotional expression around this sentence for TTS.\nStyle: gentle pauses (...), tender fillers, warm flow.\nSTRICT: Output must be 100% ${lang} only. Original sentence unchanged. Max 2 sentences. No labels.\nInput (${lang}): ${text}`,
-  sad:   (lang, text) => `You are a voice script writer. Add broken, heavy, emotional expression around this sentence for TTS.\nStyle: slow pauses (...), cracking voice feel, heavy words.\nSTRICT: Output must be 100% ${lang} only. Original sentence unchanged. Max 2 sentences. No labels.\nInput (${lang}): ${text}`,
-  angry: (lang, text) => `You are a voice script writer. Add sharp, aggressive, intense expression around this sentence for TTS.\nStyle: short punchy sentences, strong words, no softness.\nSTRICT: Output must be 100% ${lang} only. Original sentence unchanged. Max 2 sentences. No labels.\nInput (${lang}): ${text}`,
-  happy: (lang, text) => `You are a voice script writer. Add energetic, excited, joyful expression around this sentence for TTS.\nStyle: exclamations, fast rhythm, celebratory words.\nSTRICT: Output must be 100% ${lang} only. Original sentence unchanged. Max 2 sentences. No labels.\nInput (${lang}): ${text}`,
-};
-
-const rewriteWithGroq = async (text, emotion, lang) => {
-  if (!GROQ_API_KEY) return text;
-  const langName = LANG_NAMES[lang] || lang;
-  try {
-    const res = await axios.post(
-      'https://api.groq.com/openai/v1/chat/completions',
-      { model: 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: GROQ_PROMPTS[emotion](langName, text) }], max_tokens: 160, temperature: 0.80 },
-      { headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 12000 }
-    );
-    const out = res.data?.choices?.[0]?.message?.content?.trim();
-    if (out) { console.log(`[Groq] ${emotion}(${lang}): "${out.slice(0, 80)}"`); return out; }
-  } catch (e) { console.log(`[Groq] Failed: ${e.message}`); }
-  return text;
-};
-
-// ─── Cleanup ──────────────────────────────────────────────────────────────────
 const cleanupCache = (exclude = null) => {
   try {
     const files = fs.readdirSync(AUDIO_DIR)
@@ -109,7 +97,6 @@ const cleanupCache = (exclude = null) => {
   } catch (_) {}
 };
 
-// ─── Serve audio ──────────────────────────────────────────────────────────────
 router.get('/audio/:filename', (req, res) => {
   const filename = path.basename(req.params.filename);
   const filepath = path.join(AUDIO_DIR, filename);
@@ -122,7 +109,6 @@ router.get('/audio/:filename', (req, res) => {
   res.sendFile(filepath);
 });
 
-// ─── POST /api/emotion/rephrase ───────────────────────────────────────────────
 router.post('/rephrase', async (req, res, next) => {
   try {
     const { text, emotion, targetLang } = req.body;
@@ -138,12 +124,10 @@ router.post('/rephrase', async (req, res, next) => {
     const emojis = { love: '❤️', sad: '😢', angry: '😡', happy: '😄' };
     const { ttsRate, ttsPitch } = TTS_DEFAULTS[emotionKey];
 
-    const voiceText = await rewriteWithGroq(text.trim(), emotionKey, lang);
-
     let filename = null;
     let usedEngine = 'device-tts';
     try {
-      filename = await generateWithCartesia(voiceText, emotionKey, lang);
+      filename = await generateWithCartesia(text.trim(), emotionKey, lang);
       usedEngine = 'cartesia';
     } catch (err) {
       console.log(`[Cartesia] Failed: ${err.message} — device TTS fallback`);
@@ -153,7 +137,7 @@ router.post('/rephrase', async (req, res, next) => {
 
     return res.json({
       success: true,
-      voiceText,
+      voiceText: text.trim(),
       audioUrl: filename ? `/api/emotion/audio/${filename}` : null,
       engine: usedEngine,
       ttsRate,

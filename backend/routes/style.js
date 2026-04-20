@@ -24,9 +24,7 @@ const rephraseToStyle = (text, style) => {
   }
   
   if (style === 'funny') {
-    // Humorous aur playful tone
     const prefixes = ['LMAO,', 'Bruh,', 'Yo,', 'OMG,', 'Hold up—'];
-    const suffixes = ['😂', '💀', '🤣', 'haha', 'lol!', 'XD'];
     const jokes = [
       ` (and I oop-)`,
       ` (periodt)`,

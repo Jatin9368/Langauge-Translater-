@@ -8,7 +8,6 @@ import Voice from '@react-native-voice/voice';
 import { useTheme } from '../ThemeContext';
 import LanguagePicker from '../components/LanguagePicker';
 import EmotionSelector from '../components/EmotionSelector';
-import TTSButton from '../components/TTSButton';
 import VibeCheckSection from '../components/VibeCheckSection';
 import { translateText } from '../api';
 import { SOURCE_LANGUAGES, TARGET_LANGUAGES, getLanguageByCode } from '../languages';
@@ -17,68 +16,61 @@ const HomeScreen = () => {
   const { theme, isDark, toggleTheme } = useTheme();
   const s = makeStyles(theme, isDark);
 
-  const [inputText, setInputText] = useState('');
-  const [outputText, setOutputText] = useState('');
-  const [sourceLang, setSourceLang] = useState('auto');
-  const [targetLang, setTargetLang] = useState('en');
+  const [inputText, setInputText]     = useState('');
+  const [outputText, setOutputText]   = useState('');
+  const [sourceLang, setSourceLang]   = useState('auto');
+  const [targetLang, setTargetLang]   = useState('hi');
   const [translating, setTranslating] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [detectedLang, setDetectedLang] = useState(null);
-  const [langMismatch, setLangMismatch] = useState(false);
-  const [emotionText, setEmotionText] = useState('');
-  const [emotionVoiceText, setEmotionVoiceText] = useState('');
-  const [activeEmotion, setActiveEmotion] = useState(null);
-  const detectTimer = useRef(null);
-  const outputAnim = useRef(new Animated.Value(0)).current;
+  const outputAnim = useRef(new Animated.Value(1)).current;
+  const btnScale   = useRef(new Animated.Value(1)).current;
 
   const targetLangObj = getLanguageByCode(targetLang);
 
   useEffect(() => {
-    Voice.onSpeechStart = () => setIsListening(true);
-    Voice.onSpeechEnd = () => setIsListening(false);
-    Voice.onSpeechError = () => setIsListening(false);
+    Voice.onSpeechStart   = () => setIsListening(true);
+    Voice.onSpeechEnd     = () => setIsListening(false);
+    Voice.onSpeechError   = () => setIsListening(false);
     Voice.onSpeechResults = (e) => { const r = e.value?.[0] || ''; if (r) setInputText(r); };
     return () => { Voice.destroy().then(Voice.removeAllListeners); };
   }, []);
 
   const handleInputChange = (text) => {
     setInputText(text);
-    if (sourceLang !== 'auto') return;
-    if (!text.trim() || text.trim().length < 2) return;
-
-    // Script-based instant detection — no API needed
+    if (sourceLang !== 'auto' || !text.trim() || text.trim().length < 2) return;
     const t = text.trim();
     let detected = null;
+    if (/[\u0900-\u097F]/.test(t)) detected = 'hi';
+    else if (/[\u0980-\u09FF]/.test(t)) detected = 'bn';
+    else if (/[\u0B80-\u0BFF]/.test(t)) detected = 'ta';
+    else if (/[\u0C00-\u0C7F]/.test(t)) detected = 'te';
+    else if (/[\u0C80-\u0CFF]/.test(t)) detected = 'kn';
+    else if (/[\u0D00-\u0D7F]/.test(t)) detected = 'ml';
+    else if (/[\u0A80-\u0AFF]/.test(t)) detected = 'gu';
+    else if (/[\u0A00-\u0A7F]/.test(t)) detected = 'pa';
+    else if (/[\u0600-\u06FF]/.test(t)) detected = 'ar';
+    else if (/[\u4E00-\u9FFF]/.test(t)) detected = 'zh-CN';
+    else if (/[\u3040-\u30FF]/.test(t)) detected = 'ja';
+    else if (/[\uAC00-\uD7AF]/.test(t)) detected = 'ko';
+    else if (/[\u0400-\u04FF]/.test(t)) detected = 'ru';
+    else if (/[\u0E00-\u0E7F]/.test(t)) detected = 'th';
+    else if (/[a-zA-Z]/.test(t)) detected = 'en';
+    if (detected && detected !== sourceLang) { setSourceLang(detected); setDetectedLang(detected); }
+  };
 
-    if (/[\u0900-\u097F]/.test(t)) detected = 'hi';        // Devanagari → Hindi
-    else if (/[\u0980-\u09FF]/.test(t)) detected = 'bn';   // Bengali
-    else if (/[\u0B80-\u0BFF]/.test(t)) detected = 'ta';   // Tamil
-    else if (/[\u0C00-\u0C7F]/.test(t)) detected = 'te';   // Telugu
-    else if (/[\u0C80-\u0CFF]/.test(t)) detected = 'kn';   // Kannada
-    else if (/[\u0D00-\u0D7F]/.test(t)) detected = 'ml';   // Malayalam
-    else if (/[\u0A80-\u0AFF]/.test(t)) detected = 'gu';   // Gujarati
-    else if (/[\u0A00-\u0A7F]/.test(t)) detected = 'pa';   // Punjabi
-    else if (/[\u0600-\u06FF]/.test(t)) detected = 'ar';   // Arabic/Urdu
-    else if (/[\u4E00-\u9FFF]/.test(t)) detected = 'zh-CN'; // Chinese
-    else if (/[\u3040-\u30FF]/.test(t)) detected = 'ja';   // Japanese
-    else if (/[\uAC00-\uD7AF]/.test(t)) detected = 'ko';   // Korean
-    else if (/[\u0400-\u04FF]/.test(t)) detected = 'ru';   // Russian/Cyrillic
-    else if (/[\u0E00-\u0E7F]/.test(t)) detected = 'th';   // Thai
-    else if (/[a-zA-Z]/.test(t)) detected = 'en';           // Latin → English
-
-    if (detected && detected !== sourceLang) {
-      setSourceLang(detected);
-      setDetectedLang(detected);
-    }
+  const animateBtn = () => {
+    Animated.sequence([
+      Animated.timing(btnScale, { toValue: 0.96, duration: 80, useNativeDriver: true }),
+      Animated.spring(btnScale, { toValue: 1, friction: 4, useNativeDriver: true }),
+    ]).start();
   };
 
   const runTranslation = async () => {
     if (!inputText.trim()) return;
+    animateBtn();
     setTranslating(true);
     setOutputText('');
-    setLangMismatch(false);
-    setActiveEmotion(null);
-    setEmotionText('');
     outputAnim.setValue(0);
     try {
       const result = await translateText({
@@ -91,10 +83,9 @@ const HomeScreen = () => {
         setDetectedLang(result.detectedLang);
         setSourceLang(result.detectedLang);
       }
-      Animated.spring(outputAnim, { toValue: 1, useNativeDriver: true, tension: 100, friction: 8 }).start();
+      Animated.spring(outputAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 8 }).start();
     } catch (err) {
-      const msg = err.message || '';
-      Alert.alert('Error', msg || 'Translation failed.');
+      Alert.alert('Error', err.message || 'Translation failed.');
     } finally {
       setTranslating(false);
     }
@@ -104,8 +95,7 @@ const HomeScreen = () => {
     if (sourceLang === 'auto') return;
     setSourceLang(targetLang); setTargetLang(sourceLang);
     setInputText(outputText); setOutputText('');
-    setDetectedLang(null); setLangMismatch(false);
-    outputAnim.setValue(0);
+    setDetectedLang(null); outputAnim.setValue(0);
   };
 
   const handleVoice = async () => {
@@ -117,124 +107,155 @@ const HomeScreen = () => {
 
   const handleClear = () => {
     setInputText(''); setOutputText(''); setDetectedLang(null);
-    setLangMismatch(false); setActiveEmotion(null); setEmotionText('');
     outputAnim.setValue(0);
   };
 
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
-      <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
-        {/* â”€â”€ Header â”€â”€ */}
+      <ScrollView
+        contentContainerStyle={s.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Header ── */}
         <View style={s.header}>
-          <View style={s.logoRow}><Image source={require('../assets/logo.png')} style={s.logoImage} resizeMode="contain" /><Image source={require('../assets/aicte_logo.png')} style={s.aicteImage} resizeMode="contain" /></View>
-          <TouchableOpacity onPress={toggleTheme} style={s.themeBtn}>
-            <Text style={s.themeBtnText}>{isDark ? '\u2600\uFE0F' : '\uD83C\uDF19'}</Text>
+          <View style={s.logoRow}>
+            <Image source={require('../assets/logo.png')} style={s.logoImage} resizeMode="contain" />
+            <Image source={require('../assets/aicte_logo.png')} style={s.aicteImage} resizeMode="contain" />
+          </View>
+          <TouchableOpacity onPress={toggleTheme} style={s.themeBtn} activeOpacity={0.7}>
+            <Text style={s.themeBtnTxt}>{isDark ? '☀️' : '🌙'}</Text>
           </TouchableOpacity>
         </View>
 
-        {/* â”€â”€ Language Selector â”€â”€ */}
+        {/* ── Language Selector ── */}
         <View style={s.langCard}>
           <View style={s.langRow}>
             <View style={s.langPickerWrap}>
-              <LanguagePicker languages={SOURCE_LANGUAGES} selectedCode={sourceLang}
-                onSelect={(c) => { setSourceLang(c); setDetectedLang(null); setLangMismatch(false); }} label="From" />
+              <LanguagePicker
+                languages={SOURCE_LANGUAGES}
+                selectedCode={sourceLang}
+                onSelect={(c) => { setSourceLang(c); setDetectedLang(null); }}
+                label="From"
+              />
             </View>
-            <TouchableOpacity style={[s.swapBtn, sourceLang === 'auto' && s.swapOff]} onPress={handleSwap} disabled={sourceLang === 'auto'}>
-              <Text style={s.swapIcon}>{"\u21C4"}</Text>
+            <TouchableOpacity
+              style={[s.swapBtn, sourceLang === 'auto' && s.swapOff]}
+              onPress={handleSwap}
+              disabled={sourceLang === 'auto'}
+              activeOpacity={0.8}
+            >
+              <View style={[s.swapGrad, sourceLang === 'auto' && { backgroundColor: theme.colors.border }]}>
+                <Text style={s.swapIcon}>⇄</Text>
+              </View>
             </TouchableOpacity>
             <View style={s.langPickerWrap}>
-              <LanguagePicker languages={TARGET_LANGUAGES} selectedCode={targetLang}
-                onSelect={(c) => setTargetLang(c)} label="To" />
+              <LanguagePicker
+                languages={TARGET_LANGUAGES}
+                selectedCode={targetLang}
+                onSelect={(c) => setTargetLang(c)}
+                label="To"
+              />
             </View>
           </View>
-          {detectedLang && sourceLang !== 'auto' && (
+          {detectedLang && (
             <View style={s.detectedRow}>
-              <Text style={s.detectedDot}>{'●'}</Text>
-              <Text style={s.detectedText}>Detected: {getLanguageByCode(detectedLang)?.name || detectedLang}</Text>
+              <View style={s.detectedDot} />
+              <Text style={s.detectedTxt}>Detected: {getLanguageByCode(detectedLang)?.name || detectedLang}</Text>
             </View>
           )}
         </View>
 
-        {/* â”€â”€ Input â”€â”€ */}
+        {/* ── Input ── */}
         <View style={s.inputCard}>
           <TextInput
             style={s.inputField}
-            placeholder="Type text to translate..."
+            placeholder="Type or speak to translate..."
             placeholderTextColor={theme.colors.textPlaceholder}
             value={inputText}
             onChangeText={handleInputChange}
-            multiline maxLength={2000} textAlignVertical="top"
+            multiline
+            maxLength={2000}
+            textAlignVertical="top"
           />
           <View style={s.inputFooter}>
             <Text style={s.charCount}>{inputText.length}/2000</Text>
             <View style={s.inputBtns}>
-              {(inputText.length > 0 || outputText.length > 0) && (
+              {(inputText || outputText) ? (
                 <TouchableOpacity onPress={handleClear} style={s.iconBtn}>
-                  <Text style={s.iconBtnTxt}>{'\u2715'}</Text>
+                  <Text style={s.iconBtnTxt}>✕</Text>
                 </TouchableOpacity>
-              )}
-              <TouchableOpacity onPress={handleVoice} style={[s.iconBtn, isListening && s.iconBtnRed]}>
-                <Text style={s.iconBtnTxt}>{isListening ? '\u23F9' : '\uD83C\uDF99'}</Text>
+              ) : null}
+              <TouchableOpacity onPress={handleVoice} style={[s.iconBtn, isListening && s.iconBtnActive]} activeOpacity={0.7}>
+                <Text style={s.iconBtnTxt}>{isListening ? '⏹' : '🎙'}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
 
-        {/* â”€â”€ Translate Button â”€â”€ */}
-        <TouchableOpacity
-          style={[s.translateBtn, (!inputText.trim() || translating) && s.translateBtnOff]}
-          onPress={runTranslation} disabled={!inputText.trim() || translating}
-          activeOpacity={0.85}
-        >
-          {translating
-            ? <View style={s.translateBtnInner}><ActivityIndicator color="#fff" size="small" /><Text style={s.translateBtnTxt}>Translating...</Text></View>
-            : <Text style={s.translateBtnTxt}>Translate</Text>}
-        </TouchableOpacity>
-
-        {/* â”€â”€ Mismatch Banner â”€â”€ */}
-        {langMismatch && (
-          <TouchableOpacity style={s.mismatchBanner} onPress={() => { setSourceLang('auto'); setLangMismatch(false); }}>
-            <Text style={s.mismatchTxt}>Please select the correct language — tap to use Auto Detect</Text>
+        {/* ── Translate Button ── */}
+        <Animated.View style={{ transform: [{ scale: btnScale }] }}>
+          <TouchableOpacity
+            onPress={runTranslation}
+            disabled={!inputText.trim() || translating}
+            activeOpacity={0.88}
+          >
+            <View style={[s.translateBtn, (!inputText.trim() || translating) && s.translateBtnOff]}>
+              {translating ? (
+                <View style={s.translateBtnInner}>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={s.translateBtnTxt}>Translating...</Text>
+                </View>
+              ) : (
+                <Text style={s.translateBtnTxt}>Translate</Text>
+              )}
+            </View>
           </TouchableOpacity>
-        )}
+        </Animated.View>
 
-        {/* â”€â”€ Output â”€â”€ */}
+        {/* ── Output ── */}
         {(outputText || translating) && (
-          <Animated.View style={[s.outputCard, { opacity: outputAnim, transform: [{ translateY: outputAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>
+          <Animated.View style={[s.outputCard, {
+            opacity: outputAnim,
+            transform: [{ translateY: outputAnim.interpolate({ inputRange: [0,1], outputRange: [16,0] }) }],
+          }]}>
             <View style={s.outputHeader}>
               <View style={s.outputLangRow}>
                 <Text style={s.outputFlag}>{targetLangObj?.flag}</Text>
-                <Text style={s.outputLang}>{targetLangObj?.name}</Text>
+                <Text style={s.outputLangName}>{targetLangObj?.name}</Text>
               </View>
               {outputText && (
                 <View style={s.outputActions}>
-                  <TTSButton text={outputText} locale={targetLangObj?.ttsLocale} disabled={false} emotion="normal" />
                   <TouchableOpacity onPress={() => { Clipboard.setString(outputText); Alert.alert('Copied!'); }} style={s.actionBtn}>
-                    <Text style={s.actionBtnTxt}>{'\uD83D\uDCCB'}</Text>
+                    <Text style={s.actionBtnTxt}>📋</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={async () => { try { await Share.share({ message: outputText }); } catch (e) {} }} style={s.actionBtn}>
-                    <Text style={s.actionBtnTxt}>{'\uD83D\uDCE4'}</Text>
+                  <TouchableOpacity onPress={async () => { try { await Share.share({ message: outputText }); } catch (_) {} }} style={s.actionBtn}>
+                    <Text style={s.actionBtnTxt}>📤</Text>
                   </TouchableOpacity>
                 </View>
               )}
             </View>
             {translating
-              ? <View style={s.loadingRow}><ActivityIndicator color="#4F46E5" /><Text style={s.loadingTxt}>Translating...</Text></View>
-              : <Text style={s.outputTxt} selectable>{outputText}</Text>}
+              ? <View style={s.loadingRow}><ActivityIndicator color={theme.colors.primary} /><Text style={s.loadingTxt}>Translating...</Text></View>
+              : <Text style={s.outputTxt} selectable>{outputText}</Text>
+            }
           </Animated.View>
         )}
 
-        {/* â”€â”€ Emotion Voice â”€â”€ */}
+        {/* ── Emotion Voice ── */}
         {outputText && (
           <View style={s.section}>
-            <Text style={s.sectionLabel}>EMOTION VOICE</Text>
+            <View style={s.sectionHeader}>
+              <Text style={s.sectionEmoji}>🎭</Text>
+              <Text style={s.sectionTitle}>Emotion Voice</Text>
+            </View>
             <EmotionSelector text={outputText} locale={targetLangObj?.ttsLocale} targetLang={targetLang} disabled={translating} />
           </View>
         )}
 
-        {/* â”€â”€ Vibe Check â”€â”€ */}
+        {/* ── Vibe Check ── */}
         {outputText && <VibeCheckSection outputText={outputText} targetLang={targetLang} />}
 
       </ScrollView>
@@ -244,96 +265,99 @@ const HomeScreen = () => {
 
 const makeStyles = (theme, isDark) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
-  content: { padding: 16, paddingBottom: 48 },
+  content: { paddingHorizontal: 16, paddingBottom: 48, paddingTop: Platform.OS === 'android' ? 48 : 16 },
 
   // Header
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingTop: 6, paddingHorizontal: 4, backgroundColor: isDark ? '#0F0F1A' : '#FFFFFF', borderRadius: 12 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  logoImage: { width: 150, height: 55, backgroundColor: 'transparent' },
-  aicteImage: { width: 55, height: 55, backgroundColor: 'transparent' },
-  logoBox: {
-    width: 52, height: 52, borderRadius: 16,
-    backgroundColor: '#4F46E5',
+  logoImage: { width: 140, height: 48 },
+  aicteImage: { width: 48, height: 48 },
+  themeBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35, shadowRadius: 8, elevation: 6,
   },
-  logoLetter: { fontSize: 28, fontWeight: '900', color: '#fff' },
-  logoBadge: {
-    position: 'absolute', bottom: 3, right: -5,
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#fff', borderRadius: 7,
-    paddingHorizontal: 3, paddingVertical: 1,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 2, elevation: 2,
-  },
-  logoBadgeA: { fontSize: 8, fontWeight: '900', color: '#4F46E5' },
-  logoBadgeArrow: { fontSize: 8, color: '#06B6D4', fontWeight: '900' },
-  logoBadgeAh: { fontSize: 8, fontWeight: '900', color: '#0EA5E9' },
-  appTagAbove: { fontSize: 10, color: '#6B7280', letterSpacing: 0.3, marginBottom: 1 },
-  appName: { fontSize: 20, fontWeight: '900', color: '#4F46E5', letterSpacing: -0.5 },
-  appTagBelow: { fontSize: 9, color: '#9CA3AF', letterSpacing: 0.2, marginTop: 1 },
-  themeBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.surfaceVariant, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border },
-  themeBtnText: { fontSize: 18 },
+  themeBtnTxt: { fontSize: 18 },
 
-  // Language Card
-  langCard: { backgroundColor: theme.colors.surface, borderRadius: 18, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  // Lang card
+  langCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 20, padding: 14, marginBottom: 12,
+    borderWidth: 1, borderColor: theme.colors.border,
+    shadowColor: '#6366F1', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: isDark ? 0.15 : 0.06, shadowRadius: 12, elevation: 3,
+  },
   langRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   langPickerWrap: { flex: 1 },
-  swapBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#4F46E5', alignItems: 'center', justifyContent: 'center', shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 },
-  swapOff: { backgroundColor: theme.colors.border, shadowOpacity: 0 },
-  swapIcon: { fontSize: 16, color: '#fff', fontWeight: '800' },
-  detectedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  detectedDot: { fontSize: 8, color: '#10B981' },
-  detectedText: { fontSize: 12, color: '#10B981', fontWeight: '600' },
+  swapBtn: { width: 44, height: 44, borderRadius: 22, overflow: 'hidden' },
+  swapOff: { opacity: 0.4 },
+  swapGrad: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: '#6366F1', borderRadius: 22 },
+  swapIcon: { fontSize: 18, color: '#fff', fontWeight: '800' },
+  detectedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
+  detectedDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' },
+  detectedTxt: { fontSize: 12, color: '#10B981', fontWeight: '600' },
 
   // Input
-  inputCard: { backgroundColor: theme.colors.surface, borderRadius: 18, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border, minHeight: 130, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
-  inputField: { fontSize: 16, color: theme.colors.text, minHeight: 80, lineHeight: 24 },
-  inputFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+  inputCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 20, padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: theme.colors.border,
+    minHeight: 140,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDark ? 0.2 : 0.05, shadowRadius: 8, elevation: 2,
+  },
+  inputField: { fontSize: 16, color: theme.colors.text, minHeight: 90, lineHeight: 24 },
+  inputFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   charCount: { fontSize: 12, color: theme.colors.textPlaceholder },
   inputBtns: { flexDirection: 'row', gap: 8 },
-  iconBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.colors.surfaceVariant, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border },
-  iconBtnRed: { backgroundColor: '#FEE2E2', borderColor: '#EF4444' },
+  iconBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(99,102,241,0.08)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  iconBtnActive: { backgroundColor: 'rgba(239,68,68,0.12)' },
   iconBtnTxt: { fontSize: 15 },
 
-  // Translate Button
-  translateBtn: { backgroundColor: '#4F46E5', borderRadius: 16, paddingVertical: 16, alignItems: 'center', marginBottom: 12, shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6 },
-  translateBtnOff: { opacity: 0.45, shadowOpacity: 0, elevation: 0 },
+  // Translate button
+  translateBtn: {
+    borderRadius: 18, paddingVertical: 17,
+    alignItems: 'center', marginBottom: 14,
+    backgroundColor: '#6366F1',
+    shadowColor: '#6366F1', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
+  },
+  translateBtnOff: { backgroundColor: isDark ? '#2D2D4A' : '#E2E8F0', shadowOpacity: 0, elevation: 0 },
   translateBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   translateBtnTxt: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 0.3 },
 
   // Output
-  outputCard: { backgroundColor: theme.colors.surface, borderRadius: 18, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  outputCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 20, padding: 16, marginBottom: 14,
+    borderWidth: 1, borderColor: theme.colors.border,
+    shadowColor: '#6366F1', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: isDark ? 0.15 : 0.07, shadowRadius: 12, elevation: 3,
+  },
   outputHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   outputLangRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  outputFlag: { fontSize: 18 },
-  outputLang: { fontSize: 14, fontWeight: '700', color: '#4F46E5' },
-  outputActions: { flexDirection: 'row', gap: 6, alignItems: 'center' },
-  actionBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: theme.colors.surfaceVariant, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border },
+  outputFlag: { fontSize: 20 },
+  outputLangName: { fontSize: 14, fontWeight: '700', color: theme.colors.primary },
+  outputActions: { flexDirection: 'row', gap: 6 },
+  actionBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(99,102,241,0.07)',
+    alignItems: 'center', justifyContent: 'center',
+  },
   actionBtnTxt: { fontSize: 14 },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   loadingTxt: { color: theme.colors.textSecondary, fontSize: 14 },
   outputTxt: { fontSize: 17, color: theme.colors.text, lineHeight: 26 },
 
   // Sections
-  section: { marginBottom: 10 },
-  sectionLabel: { fontSize: 10, fontWeight: '800', color: theme.colors.textSecondary, letterSpacing: 1.5, marginBottom: 8 },
+  section: { marginBottom: 12 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  sectionEmoji: { fontSize: 16 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: theme.colors.textSecondary, letterSpacing: 0.5 },
 });
 
 export default HomeScreen;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
