@@ -41,7 +41,7 @@ const STYLES_CONFIG = [
   },
 ];
 
-const VibeCheckSection = ({ outputText, targetLang }) => {
+const VibeCheckSection = ({ outputText, targetLang, onReplace }) => {
   const { theme, isDark } = useTheme();
   const s = makeStyles(theme, isDark);
 
@@ -139,6 +139,12 @@ const VibeCheckSection = ({ outputText, targetLang }) => {
                     style={[s.actionBtn, { borderColor: cfg.accent + '50' }]}
                   >
                     <Text style={[s.actionBtnTxt, { color: cfg.accent }]}>Share</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => { onReplace(result.text); Alert.alert('Replaced!', 'Translated text updated.'); }}
+                    style={[s.actionBtn, { borderColor: cfg.accent + '50', backgroundColor: cfg.accent + '15' }]}
+                  >
+                    <Text style={[s.actionBtnTxt, { color: cfg.accent }]}>Replace</Text>
                   </TouchableOpacity>
                 </View>
               </View>
