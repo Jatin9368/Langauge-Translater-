@@ -179,7 +179,7 @@ const HomeScreen = ({ route }) => {
         {/* ── Header ── */}
         <View style={s.header}>
           <View style={s.logoRow}>
-            <Image source={require('../assets/logo.png')} style={s.logoImage} resizeMode="contain" />
+            <Image source={require('../assets/logo.png')} style={s.logoImage} />
           </View>
           <TouchableOpacity onPress={toggleTheme} style={s.themeBtn} activeOpacity={0.7}>
             <Text style={s.themeBtnTxt}>{isDark ? '☀️' : '🌙'}</Text>
@@ -335,12 +335,12 @@ const HomeScreen = ({ route }) => {
 
 const makeStyles = (theme, isDark) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
-  content: { paddingHorizontal: 16, paddingBottom: 48, paddingTop: Platform.OS === 'android' ? 48 : 16 },
+  content: { paddingHorizontal: 16, paddingBottom: 48, paddingTop: Platform.OS === 'android' ? 32 : 8 },
 
   // Header
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  logoImage: { width: 180, height: 64 },
+  logoImage: { width: 200, height: 70, resizeMode: 'contain' },
   themeBtn: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',

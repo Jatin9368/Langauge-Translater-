@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Alert, ActivityIndicator, RefreshControl, Clipboard,
+  Alert, ActivityIndicator, RefreshControl, Clipboard, StatusBar, Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
@@ -13,13 +13,13 @@ const HistoryScreen = ({ navigation }) => {
   const { theme, isDark } = useTheme();
   const s = makeStyles(theme, isDark);
 
-  const [items, setItems]           = useState([]);
-  const [loading, setLoading]       = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [page, setPage]             = useState(1);
-  const [hasMore, setHasMore]       = useState(true);
+  const [items, setItems]             = useState([]);
+  const [loading, setLoading]         = useState(false);
+  const [refreshing, setRefreshing]   = useState(false);
+  const [page, setPage]               = useState(1);
+  const [hasMore, setHasMore]         = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [total, setTotal]           = useState(0);
+  const [total, setTotal]             = useState(0);
 
   const loadHistory = async (pageNum = 1, append = false) => {
     if (pageNum === 1) setLoading(true);
@@ -43,7 +43,7 @@ const HistoryScreen = ({ navigation }) => {
   useFocusEffect(useCallback(() => { loadHistory(1, false); }, []));
 
   const handleDelete = (id) => {
-    Alert.alert('Delete', 'Remove this item?', [
+    Alert.alert('Delete Entry', 'Remove this translation from history?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
@@ -60,7 +60,7 @@ const HistoryScreen = ({ navigation }) => {
 
   const handleClearAll = () => {
     if (!items.length) return;
-    Alert.alert('Clear All', 'Delete all history?', [
+    Alert.alert('Clear All History', 'This will permanently delete all your translations.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Clear All', style: 'destructive',
@@ -82,45 +82,62 @@ const HistoryScreen = ({ navigation }) => {
       if (diff < 60000) return 'Just now';
       if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
       if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-      return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    } catch { return d; }
+      if (diff < 172800000) return 'Yesterday';
+      return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    } catch { return ''; }
   };
 
   const renderItem = ({ item, index }) => (
     <View style={s.card}>
-      {/* Top row — lang badges + delete */}
-      <View style={s.cardTop}>
-        <View style={s.langPill}>
-          <Text style={s.langFrom}>{item.sourceLangName || item.sourceLang}</Text>
-          <Text style={s.langArrow}>›</Text>
-          <Text style={s.langTo}>{item.targetLangName || item.targetLang}</Text>
+      {/* Header row */}
+      <View style={s.cardHeader}>
+        <View style={s.langRow}>
+          <View style={s.langBadge}>
+            <Text style={s.langBadgeTxt}>{item.sourceLangName || item.sourceLang}</Text>
+          </View>
+          <Text style={s.arrow}>→</Text>
+          <View style={[s.langBadge, s.langBadgeTarget]}>
+            <Text style={[s.langBadgeTxt, s.langBadgeTargetTxt]}>{item.targetLangName || item.targetLang}</Text>
+          </View>
         </View>
-        <View style={s.cardTopRight}>
+        <View style={s.headerRight}>
           <Text style={s.timeText}>{formatDate(item.createdAt)}</Text>
-          <TouchableOpacity onPress={() => handleDelete(item._id)} style={s.deleteBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={s.deleteBtnText}>✕</Text>
+          <TouchableOpacity
+            onPress={() => handleDelete(item._id)}
+            style={s.deleteBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={s.deleteTxt}>✕</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Source text */}
-      <Text style={s.sourceText} numberOfLines={2}>{item.sourceText}</Text>
-
-      {/* Translated text */}
-      <View style={s.translatedBox}>
-        <Text style={s.translatedText} numberOfLines={3}>{item.translatedText}</Text>
+      {/* Content */}
+      <View style={s.cardBody}>
+        <View style={s.textBlock}>
+          <Text style={s.textLabel}>Original</Text>
+          <Text style={s.sourceText} numberOfLines={2}>{item.sourceText}</Text>
+        </View>
+        <View style={s.divider} />
+        <View style={s.textBlock}>
+          <Text style={[s.textLabel, { color: '#6366F1' }]}>Translation</Text>
+          <Text style={s.translatedText} numberOfLines={3}>{item.translatedText}</Text>
+        </View>
       </View>
 
       {/* Actions */}
-      <View style={s.actions}>
+      <View style={s.cardFooter}>
         <TouchableOpacity
-          style={s.actionBtn}
+          style={s.footerBtn}
           onPress={() => { Clipboard.setString(item.translatedText); Alert.alert('Copied!'); }}
+          activeOpacity={0.7}
         >
-          <Text style={s.actionBtnTxt}>📋 Copy</Text>
+          <Text style={s.footerBtnIcon}>📋</Text>
+          <Text style={s.footerBtnTxt}>Copy</Text>
         </TouchableOpacity>
+        <View style={s.footerDivider} />
         <TouchableOpacity
-          style={[s.actionBtn, s.actionBtnRetranslate]}
+          style={[s.footerBtn, s.footerBtnPrimary]}
           onPress={() => navigation.navigate('Home', {
             retranslate: {
               text: item.sourceText,
@@ -129,8 +146,10 @@ const HistoryScreen = ({ navigation }) => {
               translatedText: item.translatedText,
             }
           })}
+          activeOpacity={0.7}
         >
-          <Text style={[s.actionBtnTxt, s.actionBtnTxtRetranslate]}>🔄 Retranslate</Text>
+          <Text style={s.footerBtnIcon}>🔄</Text>
+          <Text style={[s.footerBtnTxt, { color: '#6366F1' }]}>Use Again</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -138,15 +157,19 @@ const HistoryScreen = ({ navigation }) => {
 
   return (
     <View style={s.root}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
+
       {/* Header */}
       <View style={s.header}>
         <View>
           <Text style={s.headerTitle}>History</Text>
-          <Text style={s.headerSub}>{total > 0 ? `${total} translations` : 'No translations yet'}</Text>
+          <Text style={s.headerSub}>
+            {total > 0 ? `${total} translation${total > 1 ? 's' : ''}` : 'No translations yet'}
+          </Text>
         </View>
         {items.length > 0 && (
-          <TouchableOpacity onPress={handleClearAll} style={s.clearBtn}>
-            <Text style={s.clearBtnText}>🗑 Clear All</Text>
+          <TouchableOpacity onPress={handleClearAll} style={s.clearBtn} activeOpacity={0.8}>
+            <Text style={s.clearBtnTxt}>🗑 Clear All</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -154,7 +177,7 @@ const HistoryScreen = ({ navigation }) => {
       {loading && !items.length ? (
         <View style={s.centered}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={s.loadingText}>Loading history...</Text>
+          <Text style={s.loadingTxt}>Loading history...</Text>
         </View>
       ) : (
         <FlatList
@@ -162,19 +185,19 @@ const HistoryScreen = ({ navigation }) => {
           keyExtractor={item => item._id}
           renderItem={renderItem}
           ListEmptyComponent={
-            <View style={s.emptyContainer}>
-              <Text style={s.emptyIcon}>📜</Text>
+            <View style={s.empty}>
+              <Text style={s.emptyIcon}>🌐</Text>
               <Text style={s.emptyTitle}>No History Yet</Text>
-              <Text style={s.emptyDesc}>Your translations will appear here automatically.</Text>
+              <Text style={s.emptyDesc}>Your translations will appear here once you start translating.</Text>
             </View>
           }
           ListFooterComponent={
             loadingMore
-              ? <ActivityIndicator color={theme.colors.primary} style={{ padding: 20 }} />
+              ? <ActivityIndicator color={theme.colors.primary} style={{ paddingVertical: 20 }} />
               : null
           }
           onEndReached={() => { if (hasMore && !loadingMore) loadHistory(page + 1, true); }}
-          onEndReachedThreshold={0.3}
+          onEndReachedThreshold={0.4}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -195,90 +218,109 @@ const makeStyles = (theme, isDark) => StyleSheet.create({
 
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: theme.colors.border,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? 52 : 20,
+    paddingBottom: 16,
   },
-  headerTitle: { fontSize: 26, fontWeight: '800', color: theme.colors.text, letterSpacing: -0.5 },
-  headerSub: { fontSize: 13, color: theme.colors.textSecondary, marginTop: 2 },
+  headerTitle: {
+    fontSize: 30, fontWeight: '800', color: theme.colors.text, letterSpacing: -0.5,
+  },
+  headerSub: { fontSize: 13, color: theme.colors.textSecondary, marginTop: 3 },
   clearBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
     backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : '#FEE2E2',
   },
-  clearBtnText: { fontSize: 13, color: '#EF4444', fontWeight: '700' },
+  clearBtnTxt: { fontSize: 13, color: '#EF4444', fontWeight: '700' },
 
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  loadingText: { fontSize: 14, color: theme.colors.textSecondary },
+  loadingTxt: { fontSize: 14, color: theme.colors.textSecondary },
 
-  listContent: { padding: 16, paddingBottom: 40, flexGrow: 1 },
+  listContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 48, flexGrow: 1 },
 
+  // ── Card ──────────────────────────────────────────────────────────────────
   card: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: isDark ? 'rgba(99,102,241,0.07)' : '#F5F6FF',
     borderRadius: 20, marginBottom: 14,
-    borderWidth: 1, borderColor: theme.colors.border,
+    borderWidth: 1, borderColor: isDark ? 'rgba(99,102,241,0.2)' : '#E0E2FF',
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: isDark ? 0.2 : 0.07,
-    shadowRadius: 8, elevation: 3,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: isDark ? 0.15 : 0.08,
+    shadowRadius: 10, elevation: 3,
   },
 
-  cardTop: {
+  // Card header
+  cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.colors.border,
-    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+    paddingHorizontal: 14, paddingVertical: 10,
+    backgroundColor: isDark ? 'rgba(99,102,241,0.12)' : '#ECEEFF',
+    borderBottomWidth: 1, borderBottomColor: isDark ? 'rgba(99,102,241,0.2)' : '#E0E2FF',
   },
-  langPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: theme.colors.primaryLight,
+  langRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  langBadge: {
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.8)',
   },
-  langFrom: { fontSize: 12, fontWeight: '700', color: theme.colors.primary },
-  langArrow: { fontSize: 14, color: theme.colors.primary, fontWeight: '800' },
-  langTo: { fontSize: 12, fontWeight: '700', color: theme.colors.primary },
-  cardTopRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  langBadgeTxt: { fontSize: 12, fontWeight: '700', color: isDark ? '#A5B4FC' : '#4338CA' },
+  langBadgeTarget: { backgroundColor: '#6366F1' },
+  langBadgeTargetTxt: { color: '#fff' },
+  arrow: { fontSize: 14, color: isDark ? '#818CF8' : '#6366F1', fontWeight: '700' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   timeText: { fontSize: 11, color: theme.colors.textSecondary },
   deleteBtn: { padding: 2 },
-  deleteBtnText: { fontSize: 13, color: theme.colors.textSecondary },
+  deleteTxt: { fontSize: 13, color: theme.colors.textSecondary },
 
-  sourceText: {
-    fontSize: 14, color: theme.colors.textSecondary,
-    lineHeight: 20, paddingHorizontal: 14, paddingTop: 12,
+  // Card body
+  cardBody: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4 },
+  textBlock: { gap: 4 },
+  textLabel: {
+    fontSize: 10, fontWeight: '800', letterSpacing: 0.8,
+    color: theme.colors.textSecondary, textTransform: 'uppercase',
   },
-
-  translatedBox: {
-    marginHorizontal: 14, marginTop: 8, marginBottom: 4,
-    backgroundColor: isDark ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.05)',
-    borderRadius: 12, padding: 10,
-    borderLeftWidth: 3, borderLeftColor: theme.colors.primary,
+  sourceText: {
+    fontSize: 14, color: theme.colors.textSecondary, lineHeight: 21,
+  },
+  divider: {
+    height: 1, backgroundColor: theme.colors.border,
+    marginVertical: 10,
   },
   translatedText: {
     fontSize: 16, color: theme.colors.text,
     lineHeight: 24, fontWeight: '600',
   },
 
-  actions: {
-    flexDirection: 'row', gap: 8,
-    paddingHorizontal: 14, paddingVertical: 12,
+  // Card footer
+  cardFooter: {
+    flexDirection: 'row', alignItems: 'center',
+    borderTopWidth: 1, borderTopColor: theme.colors.border,
+    marginTop: 8,
   },
-  actionBtn: {
-    flex: 1, paddingVertical: 8, borderRadius: 10,
-    backgroundColor: theme.colors.primaryLight, alignItems: 'center',
+  footerBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 6,
+    paddingVertical: 11,
   },
-  actionBtnSecondary: {
-    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+  footerBtnPrimary: {
+    backgroundColor: isDark ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.08)',
   },
-  actionBtnRetranslate: {
-    backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.08)',
-  },
-  actionBtnTxt: { fontSize: 13, color: theme.colors.primary, fontWeight: '700' },
-  actionBtnTxtRetranslate: { color: '#10B981' },
+  footerDivider: { width: 1, height: '60%', backgroundColor: theme.colors.border },
+  footerBtnIcon: { fontSize: 14 },
+  footerBtnTxt: { fontSize: 13, fontWeight: '700', color: theme.colors.textSecondary },
 
-  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, paddingHorizontal: 32 },
-  emptyIcon: { fontSize: 64, marginBottom: 20 },
-  emptyTitle: { fontSize: 22, fontWeight: '800', color: theme.colors.text, marginBottom: 10 },
-  emptyDesc: { fontSize: 15, color: theme.colors.textSecondary, textAlign: 'center', lineHeight: 22 },
+  // Empty state
+  empty: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingTop: 100, paddingHorizontal: 40,
+  },
+  emptyIcon: { fontSize: 72, marginBottom: 20 },
+  emptyTitle: {
+    fontSize: 22, fontWeight: '800', color: theme.colors.text,
+    marginBottom: 10, textAlign: 'center',
+  },
+  emptyDesc: {
+    fontSize: 15, color: theme.colors.textSecondary,
+    textAlign: 'center', lineHeight: 23,
+  },
 });
 
 export default HistoryScreen;

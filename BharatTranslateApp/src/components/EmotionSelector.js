@@ -21,7 +21,7 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
 
   const [speakingEmotion, setSpeakingEmotion] = useState(null);
   const [loadingEmotion, setLoadingEmotion]   = useState(null);
-  const [audioUrl, setAudioUrl]               = useState(null);
+  const [audioUrl, setAudioUrl] = useState(null); // { url, volume, pauseMs }
   const videoRef = useRef(null);
   const scaleAnims = useRef(EMOTIONS.map(() => new Animated.Value(1))).current;
   const glowAnims  = useRef(EMOTIONS.map(() => new Animated.Value(0))).current;
@@ -62,12 +62,28 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
     setSpeakingEmotion(null);
   };
 
-  const playDeviceTTS = async (ttsText, ttsRate, ttsPitch) => {
+  const playDeviceTTS = async (ttsText, ttsRate, ttsPitch, volume, pauseMs, emotion) => {
     try {
       if (locale) await Tts.setDefaultLanguage(locale);
       await Tts.setDefaultRate(ttsRate || 0.5);
       await Tts.setDefaultPitch(ttsPitch || 1.0);
-      Tts.speak(ttsText);
+
+      if (emotion === 'sad') {
+        const words = ttsText.trim().split(/\s+/);
+        const chunks = [];
+        for (let i = 0; i < words.length; i += 5) {
+          chunks.push(words.slice(i, i + 5).join(' '));
+        }
+        for (const chunk of chunks) {
+          Tts.speak(chunk);
+          await new Promise(resolve => setTimeout(resolve, 220));
+        }
+      } else {
+        if (pauseMs && pauseMs > 150) {
+          await new Promise(resolve => setTimeout(resolve, pauseMs));
+        }
+        Tts.speak(ttsText);
+      }
     } catch (e) {
       console.warn('[TTS] Error:', e.message);
       setSpeakingEmotion(null);
@@ -98,9 +114,9 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
 
       if (result.audioUrl) {
         const fullUrl = `${BASE_URL}${result.audioUrl}?t=${Date.now()}`;
-        setAudioUrl(fullUrl);
+        setAudioUrl({ url: fullUrl, volume: result.volume ?? 1.0, pauseMs: result.pauseMs ?? 0 });
       } else {
-        await playDeviceTTS(result.voiceText || text.trim(), result.ttsRate, result.ttsPitch);
+        await playDeviceTTS(result.voiceText || text.trim(), result.ttsRate, result.ttsPitch, result.volume, result.pauseMs, emotion.key);
       }
     } catch (err) {
       console.warn('[EmotionSelector] Error:', err.message);
@@ -116,14 +132,20 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
       {audioUrl && (
         <Video
           ref={videoRef}
-          source={{ uri: audioUrl }}
+          source={{ uri: audioUrl.url }}
           audioOnly={true}
           paused={false}
-          volume={1.0}
+          volume={audioUrl.volume ?? 1.0}
           playInBackground={true}
           playWhenInactive={true}
           ignoreSilentSwitch="ignore"
           style={{ width: 1, height: 1, position: 'absolute', opacity: 0 }}
+          onLoad={() => {
+            // Apply pause delay before audio starts for sad/love
+            if (audioUrl.pauseMs && audioUrl.pauseMs > 150) {
+              if (videoRef.current) videoRef.current.seek(0);
+            }
+          }}
           onEnd={() => {
             const idx = EMOTIONS.findIndex(e => e.key === speakingEmotion);
             if (idx >= 0) stopGlow(idx);
