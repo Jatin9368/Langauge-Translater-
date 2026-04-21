@@ -74,14 +74,29 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
         for (let i = 0; i < words.length; i += 5) {
           chunks.push(words.slice(i, i + 5).join(' '));
         }
+        // sad: pauseMs range 500–700, clamp to be safe
+        const sadDelay = Math.min(Math.max(pauseMs ?? 620, 500), 700);
         for (const chunk of chunks) {
           Tts.speak(chunk);
-          await new Promise(resolve => setTimeout(resolve, 220));
+          await new Promise(resolve => setTimeout(resolve, sadDelay));
         }
+      } else if (emotion === 'love') {
+        // love: pauseMs range 250–300
+        const loveDelay = Math.min(Math.max(pauseMs ?? 280, 250), 300);
+        await new Promise(resolve => setTimeout(resolve, loveDelay));
+        Tts.speak(ttsText);
+      } else if (emotion === 'happy') {
+        // happy: pauseMs range 100–150
+        const happyDelay = Math.min(Math.max(pauseMs ?? 140, 100), 150);
+        await new Promise(resolve => setTimeout(resolve, happyDelay));
+        Tts.speak(ttsText);
+      } else if (emotion === 'angry') {
+        // angry: pauseMs range 50–80
+        const angryDelay = Math.min(Math.max(pauseMs ?? 60, 50), 80);
+        await new Promise(resolve => setTimeout(resolve, angryDelay));
+        Tts.speak(ttsText);
       } else {
-        if (pauseMs && pauseMs > 150) {
-          await new Promise(resolve => setTimeout(resolve, pauseMs));
-        }
+        if (pauseMs) await new Promise(resolve => setTimeout(resolve, pauseMs));
         Tts.speak(ttsText);
       }
     } catch (e) {
@@ -140,11 +155,9 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
           playWhenInactive={true}
           ignoreSilentSwitch="ignore"
           style={{ width: 1, height: 1, position: 'absolute', opacity: 0 }}
-          onLoad={() => {
-            // Apply pause delay before audio starts for sad/love
-            if (audioUrl.pauseMs && audioUrl.pauseMs > 150) {
-              if (videoRef.current) videoRef.current.seek(0);
-            }
+          onLoad={(data) => {
+            // Skip first ~0.3s to avoid AICTE's repeated first word
+            if (videoRef.current) videoRef.current.seek(0.1);
           }}
           onEnd={() => {
             const idx = EMOTIONS.findIndex(e => e.key === speakingEmotion);

@@ -15,19 +15,19 @@ const AUDIO_DIR = path.join(__dirname, '../audio_cache');
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
 
 const TTS_DEFAULTS = {
-  love:  { ttsRate: 0.46, ttsPitch: 1.05, volume: 0.85, pauseMs: 350 },
-  sad:   { ttsRate: 0.38, ttsPitch: 0.82, volume: 0.70, pauseMs: 400 },
-  happy: { ttsRate: 0.55, ttsPitch: 1.18, volume: 1.00, pauseMs: 100 },
-  angry: { ttsRate: 0.60, ttsPitch: 0.78, volume: 1.00, pauseMs: 80  },
+  love:  { ttsRate: 0.44, ttsPitch: 1.05, volume: 0.72, pauseMs: 290 }, // range: 250–300 — soft, slow, gentle
+  sad:   { ttsRate: 0.32, ttsPitch: 0.72, volume: 0.48, pauseMs: 580 }, // range: 500–700 — dukhi, dabi awaaz
+  happy: { ttsRate: 0.52, ttsPitch: 1.12, volume: 0.95, pauseMs: 140 }, // range: 100–150
+  angry: { ttsRate: 0.62, ttsPitch: 0.72, volume: 1.15, pauseMs:  60 }, // range:  50–80
 };
 
 // ─── AICTE Emotion Mapping ────────────────────────────────────────────────────
 // AICTE supports 120+ emotions — mapping our 4 to best matches
 const AICTE_EMOTION_MAP = {
-  love:  { emotion: 'romantic',  speed: 0.85, pitch: 2  },
-  sad:   { emotion: 'sad',       speed: 0.75, pitch: -3 },
-  happy: { emotion: 'happy',     speed: 1.15, pitch: 2  },
-  angry: { emotion: 'angry',     speed: 1.25, pitch: -2 },
+  love:  { emotion: 'romantic', speed: 0.80, pitch: 1.4  }, // romantic is AICTE's known emotion, slow + warm
+  sad:   { emotion: 'sad',      speed: 0.85, pitch: -4.0 }, // men ki awaaz, dukhi feel
+  happy: { emotion: 'happy',    speed: 1.10, pitch: 2.5  },
+  angry: { emotion: 'angry',    speed: 1.20, pitch: -1.5 }, // was 1.30/-3 — extreme pitch slows AICTE
 };
 
 // ─── AICTE Language Code Mapping ─────────────────────────────────────────────
@@ -46,21 +46,24 @@ const AICTE_LANG_MAP = {
 const toAicteLang = (lang) => AICTE_LANG_MAP[lang] || 'hi';
 
 // ─── Add natural pauses to sad text ──────────────────────────────────────────
-const addSadPauses = (text) => {
+const addSadPauses = (text) => text.trim(); // no chunks — pure AICTE sad emotion
+
+// ─── Add soft pauses to love text ────────────────────────────────────────────
+const addLovePauses = (text) => {
   const words = text.trim().split(/\s+/);
-  if (words.length <= 4) return text + '..';
+  if (words.length <= 4) return text;
   const chunks = [];
   for (let i = 0; i < words.length; i += 5) {
     chunks.push(words.slice(i, i + 5).join(' '));
   }
-  return chunks.join('.. ') + '..';
+  return chunks.join(', '); // gentle flow with soft pauses
 };
 
 // ─── AICTE TTS Generation ─────────────────────────────────────────────────────
 const generateWithAICTE = async (text, emotion, lang) => {
   const emotionCfg = AICTE_EMOTION_MAP[emotion];
   const language = toAicteLang(lang);
-  const transcript = emotion === 'sad' ? addSadPauses(text) : text;
+  const transcript = emotion === 'sad' ? addSadPauses(text) : emotion === 'love' ? addLovePauses(text) : text;
 
   console.log(`[AICTE TTS] ${emotion}|${lang}→${language}|emotion=${emotionCfg.emotion}`);
 
@@ -69,15 +72,15 @@ const generateWithAICTE = async (text, emotion, lang) => {
     {
       text: transcript,
       language,
-      emotion: emotionCfg.emotion,
       speed: emotionCfg.speed,
       pitch: emotionCfg.pitch,
       model: 'fast',
+      // emotion field removed — AICTE was announcing emotion name in audio
     },
     {
       headers: { 'Content-Type': 'application/json' },
       responseType: 'arraybuffer',
-      timeout: 60000,
+      timeout: 20000, // reduced from 60s — fail fast, fallback to device TTS
     }
   );
 
