@@ -4,12 +4,12 @@ const path = require('path');
 const fs = require('fs');
 const router = express.Router();
 
-// ─── AICTE TTS (Primary) ─────────────────────────────────────────────────────
+// ─── AICTE TTS (Primary for love/happy) ──────────────────────────────────────
 const AICTE_TTS_URL = 'https://pravahai.aicte-india.org/audiobook/api/tts/synthesize';
 
-// ─── Cartesia (Commented — kept for reference) ───────────────────────────────
-// const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
-// const CARTESIA_URL = 'https://api.cartesia.ai/tts/bytes';
+// ─── Cartesia (Primary for sad/angry) ────────────────────────────────────────
+const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
+const CARTESIA_URL = 'https://api.cartesia.ai/tts/bytes';
 
 const AUDIO_DIR = path.join(__dirname, '../audio_cache');
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
@@ -24,10 +24,10 @@ const TTS_DEFAULTS = {
 // ─── AICTE Emotion Mapping ────────────────────────────────────────────────────
 // AICTE supports 120+ emotions — mapping our 4 to best matches
 const AICTE_EMOTION_MAP = {
-  love:  { emotion: 'romantic', speed: 0.80, pitch: 1.4  }, // romantic is AICTE's known emotion, slow + warm
-  sad:   { emotion: 'sad',      speed: 0.85, pitch: -4.0 }, // men ki awaaz, dukhi feel
-  happy: { emotion: 'happy',    speed: 1.10, pitch: 2.5  },
-  angry: { emotion: 'angry',    speed: 1.20, pitch: -1.5 }, // was 1.30/-3 — extreme pitch slows AICTE
+  love:  { speed: 0.90, pitch: -1.5 }, // negative pitch = men voice, slow = pyar se
+  happy: { speed: 1.05, pitch: -1.0 }, // men voice, slightly fast = khushi
+  sad:   { speed: 0.92, pitch: 0.8  }, // fallback only
+  angry: { speed: 1.08, pitch: 0.9  }, // fallback only
 };
 
 // ─── AICTE Language Code Mapping ─────────────────────────────────────────────
@@ -65,7 +65,7 @@ const generateWithAICTE = async (text, emotion, lang) => {
   const language = toAicteLang(lang);
   const transcript = emotion === 'sad' ? addSadPauses(text) : emotion === 'love' ? addLovePauses(text) : text;
 
-  console.log(`[AICTE TTS] ${emotion}|${lang}→${language}|emotion=${emotionCfg.emotion}`);
+  console.log(`[AICTE TTS] ${emotion}|${lang}→${language}`);
 
   const res = await axios.post(
     AICTE_TTS_URL,
@@ -75,7 +75,7 @@ const generateWithAICTE = async (text, emotion, lang) => {
       speed: emotionCfg.speed,
       pitch: emotionCfg.pitch,
       model: 'fast',
-      // emotion field removed — AICTE was announcing emotion name in audio
+      // emotion field intentionally omitted — AICTE announces it in audio
     },
     {
       headers: { 'Content-Type': 'application/json' },
@@ -91,69 +91,51 @@ const generateWithAICTE = async (text, emotion, lang) => {
   return filename;
 };
 
-// ─── Cartesia TTS Generation (commented — kept for reference) ────────────────
-/*
-const VOICES = {
-  telugu: {
-    love:  { id: '38bded0a-3ab4-42d1-8e47-2e0b6b10ced9', speed: 'slow'    },
-    sad:   { id: '38bded0a-3ab4-42d1-8e47-2e0b6b10ced9', speed: 'slowest' },
-    angry: { id: '38bded0a-3ab4-42d1-8e47-2e0b6b10ced9', speed: 'fast'    },
-    happy: { id: '38bded0a-3ab4-42d1-8e47-2e0b6b10ced9', speed: 'fast'    },
-  },
-  indian: {
-    love:  { id: 'faf0731e-dfb9-4cfc-8119-259a79b27e12', speed: 'slow'    }, // Riya
-    sad:   { id: '209d9a43-03eb-40d8-a7b7-51a6d54c052f', speed: 'slowest' }, // Anita
-    angry: { id: 'fd2ada67-c2d9-4afe-b474-6386b87d8fc3', speed: 'fast'    }, // Inder
-    happy: { id: 'faf0731e-dfb9-4cfc-8119-259a79b27e12', speed: 'fast'    }, // Riya
-  },
-  intl: {
-    love:  { id: 'e07c00bc-4134-4eae-9ea4-1a55fb45746b', speed: 'slow'    }, // Brooke
-    sad:   { id: '9626c31c-bec5-4cca-baa8-f8ba9e84c8bc', speed: 'slowest' }, // Jacqueline
-    angry: { id: '5ee9feff-1265-424a-9d7f-8e4d431a12c7', speed: 'fast'    }, // Ronald
-    happy: { id: 'a167e0f3-df7e-4d52-a9c3-f949145efdab', speed: 'fast'    }, // Blake
-  },
+// ─── Cartesia TTS (sad/angry — human voice IDs) ──────────────────────────────
+const CARTESIA_VOICES = {
+  sad:   { id: '209d9a43-03eb-40d8-a7b7-51a6d54c052f', speed: 'slowest' }, // Anita — Indian women, dukhi
+  angry: { id: 'fd2ada67-c2d9-4afe-b474-6386b87d8fc3', speed: 'fast'    }, // Inder — Indian men, gussa
 };
 
-const INDIAN_LANGS = new Set([
-  'hi','bn','ta','te','mr','gu','kn','ml','pa','or',
-  'as','ur','ne','sa','mai','sat','ks','kok','sd','doi','mni','brx',
-]);
-
-const getVoiceCfg = (lang, emotion) => {
-  if (lang === 'te') return VOICES.telugu[emotion];
-  return INDIAN_LANGS.has(lang) ? VOICES.indian[emotion] : VOICES.intl[emotion];
+const CARTESIA_EMOTION_CONTROLS = {
+  sad:   { emotion: ['sadness:high',  'positivity:low']  },
+  angry: { emotion: ['anger:high',    'positivity:low']  },
 };
 
-const generateWithCartesia = async (text, emotion, lang) => {
-  const cfg = getVoiceCfg(lang, emotion);
-  if (!cfg || !CARTESIA_API_KEY) throw new Error('Cartesia not configured');
-  const transcript = emotion === 'sad' ? addSadPauses(text) : text;
-  const emotionControls = {
-    love:  { speed: cfg.speed, emotion: ['positivity:high', 'curiosity:low'] },
-    sad:   { speed: cfg.speed, emotion: ['sadness:high', 'positivity:low']   },
-    angry: { speed: cfg.speed, emotion: ['anger:high', 'positivity:low']     },
-    happy: { speed: cfg.speed, emotion: ['positivity:high', 'surprise:low']  },
-  };
+const generateWithCartesia = async (text, emotion) => {
+  if (!CARTESIA_API_KEY) throw new Error('Cartesia API key not set');
+  const cfg = CARTESIA_VOICES[emotion];
+  if (!cfg) throw new Error(`Cartesia: no voice for ${emotion}`);
+
   const res = await axios.post(
     CARTESIA_URL,
     {
       model_id: 'sonic-3',
-      transcript,
-      voice: { mode: 'id', id: cfg.id, __experimental_controls: emotionControls[emotion] },
+      transcript: text,
+      voice: {
+        mode: 'id',
+        id: cfg.id,
+        __experimental_controls: { speed: cfg.speed, ...CARTESIA_EMOTION_CONTROLS[emotion] },
+      },
       output_format: { container: 'mp3', encoding: 'mp3', sample_rate: 44100 },
     },
     {
-      headers: { 'x-api-key': CARTESIA_API_KEY, 'Cartesia-Version': '2026-03-01', 'Content-Type': 'application/json' },
+      headers: {
+        'x-api-key': CARTESIA_API_KEY,
+        'Cartesia-Version': '2026-03-01',
+        'Content-Type': 'application/json',
+      },
       responseType: 'arraybuffer',
       timeout: 25000,
     }
   );
+
   if (!res.data || res.data.byteLength < 100) throw new Error('Cartesia: empty response');
   const filename = `cartesia_${emotion}_${Date.now()}.mp3`;
   fs.writeFileSync(path.join(AUDIO_DIR, filename), Buffer.from(res.data));
+  console.log(`[Cartesia] OK → ${filename} (${res.data.byteLength} bytes)`);
   return filename;
 };
-*/
 
 // ─── Cache Cleanup ────────────────────────────────────────────────────────────
 const cleanupCache = (exclude = null) => {
@@ -197,11 +179,28 @@ router.post('/rephrase', async (req, res, next) => {
     let filename = null;
     let usedEngine = 'device-tts';
 
-    try {
-      filename = await generateWithAICTE(text.trim(), emotionKey, lang);
-      usedEngine = 'aicte-tts';
-    } catch (err) {
-      console.log(`[AICTE TTS] Failed: ${err.message} — device TTS fallback`);
+    if (['sad', 'angry'].includes(emotionKey)) {
+      // sad/angry: Cartesia first (human voice IDs), fallback to AICTE, then device TTS
+      try {
+        filename = await generateWithCartesia(text.trim(), emotionKey);
+        usedEngine = 'cartesia-tts';
+      } catch (err) {
+        console.log(`[Cartesia] Failed: ${err.message} — trying AICTE`);
+        try {
+          filename = await generateWithAICTE(text.trim(), emotionKey, lang);
+          usedEngine = 'aicte-tts';
+        } catch (err2) {
+          console.log(`[AICTE TTS] Failed: ${err2.message} — device TTS fallback`);
+        }
+      }
+    } else {
+      // love/happy: AICTE only, fallback to device TTS
+      try {
+        filename = await generateWithAICTE(text.trim(), emotionKey, lang);
+        usedEngine = 'aicte-tts';
+      } catch (err) {
+        console.log(`[AICTE TTS] Failed: ${err.message} — device TTS fallback`);
+      }
     }
 
     cleanupCache(filename);
