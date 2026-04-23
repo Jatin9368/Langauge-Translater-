@@ -23,6 +23,7 @@ const HomeScreen = ({ route }) => {
   const [translating, setTranslating] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [detectedLang, setDetectedLang] = useState(null);
+  const [translateError, setTranslateError] = useState(null);
   const outputAnim = useRef(new Animated.Value(1)).current;
   const btnScale   = useRef(new Animated.Value(1)).current;
 
@@ -128,6 +129,7 @@ const HomeScreen = ({ route }) => {
     setTranslating(true);
     setOutputWithHistory('');
     outputAnim.setValue(0);
+    setTranslateError(null);
     try {
       const result = await translateText({
         text: inputText.trim(), sourceLang, targetLang,
@@ -141,7 +143,9 @@ const HomeScreen = ({ route }) => {
       }
       Animated.spring(outputAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 8 }).start();
     } catch (err) {
-      Alert.alert('Error', err.message || 'Translation failed.');
+      const msg = err.message || 'Translation failed.';
+      const isNetwork = msg.toLowerCase().includes('network') || msg.toLowerCase().includes('connect');
+      setTranslateError(isNetwork ? '📡 No internet connection. Please check your network and try again.' : `⚠️ ${msg}`);
     } finally {
       setTranslating(false);
     }
@@ -179,7 +183,7 @@ const HomeScreen = ({ route }) => {
         {/* ── Header ── */}
         <View style={s.header}>
           <View style={s.logoRow}>
-            <Image source={require('../assets/logo.png')} style={s.logoImage} />
+            <Image source={require('../assets/logo1.png')} style={s.logoImage} />
           </View>
           <TouchableOpacity onPress={toggleTheme} style={s.themeBtn} activeOpacity={0.7}>
             <Text style={s.themeBtnTxt}>{isDark ? '☀️' : '🌙'}</Text>
@@ -270,6 +274,16 @@ const HomeScreen = ({ route }) => {
             </View>
           </TouchableOpacity>
         </Animated.View>
+
+        {/* ── Error Card ── */}
+        {translateError && (
+          <View style={s.errorCard}>
+            <Text style={s.errorText}>{translateError}</Text>
+            <TouchableOpacity onPress={runTranslation} style={s.retryBtn} activeOpacity={0.8}>
+              <Text style={s.retryTxt}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* ── Output ── */}
         {(outputText || translating) && (
@@ -421,6 +435,20 @@ const makeStyles = (theme, isDark) => StyleSheet.create({
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   loadingTxt: { color: theme.colors.textSecondary, fontSize: 14 },
   outputTxt: { fontSize: 17, color: theme.colors.text, lineHeight: 26 },
+
+  // Error card
+  errorCard: {
+    backgroundColor: isDark ? 'rgba(239,68,68,0.12)' : '#FEF2F2',
+    borderRadius: 16, padding: 16, marginBottom: 14,
+    borderWidth: 1, borderColor: isDark ? 'rgba(239,68,68,0.3)' : '#FECACA',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+  },
+  errorText: { flex: 1, fontSize: 13, color: isDark ? '#FCA5A5' : '#DC2626', lineHeight: 20 },
+  retryBtn: {
+    backgroundColor: '#EF4444', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 8,
+  },
+  retryTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
   // Sections
   section: { marginBottom: 12 },

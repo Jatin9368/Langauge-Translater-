@@ -15,7 +15,7 @@ const AUDIO_DIR = path.join(__dirname, '../audio_cache');
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
 
 const TTS_DEFAULTS = {
-  love:  { ttsRate: 0.44, ttsPitch: 1.05, volume: 0.72, pauseMs: 290 }, // range: 250–300 — soft, slow, gentle
+  love:  { ttsRate: 0.44, ttsPitch: 1.05, volume: 0.62, pauseMs: 290 }, // soft, slow, gentle — daba hua pyar
   sad:   { ttsRate: 0.32, ttsPitch: 0.72, volume: 0.48, pauseMs: 580 }, // range: 500–700 — dukhi, dabi awaaz
   happy: { ttsRate: 0.52, ttsPitch: 1.12, volume: 0.95, pauseMs: 140 }, // range: 100–150
   angry: { ttsRate: 0.62, ttsPitch: 0.72, volume: 1.15, pauseMs:  60 }, // range:  50–80
@@ -24,7 +24,7 @@ const TTS_DEFAULTS = {
 // ─── AICTE Emotion Mapping ────────────────────────────────────────────────────
 // AICTE supports 120+ emotions — mapping our 4 to best matches
 const AICTE_EMOTION_MAP = {
-  love:  { speed: 0.90, pitch: -1.5 }, // negative pitch = men voice, slow = pyar se
+  love:  { speed: 0.95, pitch: -1.5 }, // natural speed, soft men voice = pyar se bolna
   happy: { speed: 1.05, pitch: -1.0 }, // men voice, slightly fast = khushi
   sad:   { speed: 0.92, pitch: 0.8  }, // fallback only
   angry: { speed: 1.08, pitch: 0.9  }, // fallback only

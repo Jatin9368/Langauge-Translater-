@@ -5,6 +5,10 @@ const router = express.Router();
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const LANGBLY_KEY = process.env.LANGBLY_API_KEY;
 
+// ─── Ollama (Local) — uncomment to use instead of Groq ───────────────────────
+// const OLLAMA_URL = 'http://localhost:11434/api/generate';
+// const OLLAMA_MODEL = 'llama3.2:3b';
+
 // ─── Step 1: Translate input to English for Groq ─────────────────────────────
 const toEnglish = async (text, sourceLang) => {
   if (!sourceLang || sourceLang === 'en') return text;
@@ -35,51 +39,60 @@ const translateBatch = async (sentences, targetLang) => {
   return results;
 };
 
-// ─── Step 3: Groq generates 4 styles in English ──────────────────────────────
+// ─── Step 3: Groq generates 4 styles ─────────────────────────────────────────
 const generateStylesInEnglish = async (text) => {
-  const prompt = `Rewrite the following sentence in 4 different styles. Give exactly 3 variations per style.
+  const prompt = `You are a text style rewriter. Rewrite the sentence below in 4 communication styles.
 
-STRICT RULES:
-- Output ONLY in the same language as the input sentence
-- Do NOT add any English words if the input is in a non-English language
-- Do NOT use English slang, filler phrases, or English words mixed in
-- Only rephrase the core meaning — keep it natural in the input language
-- Each variation must be a complete, clean sentence
-- You may add a few extra words to make it sound more natural in that style
+CRITICAL RULES:
+1. Keep the EXACT SAME meaning and topic — do NOT change what the sentence is about
+2. Do NOT add emotions, feelings, or sentiment that are not in the original
+3. Only change the TONE and STYLE of communication
+4. Output ONLY in English
+5. Each line must start with the exact label shown below
+6. No extra text, no explanations, no numbering
 
-Output format (use exactly these labels):
-GEN_Z_1: <sentence>
-GEN_Z_2: <sentence>
-GEN_Z_3: <sentence>
-CASUAL_1: <sentence>
-CASUAL_2: <sentence>
-CASUAL_3: <sentence>
-PROFESSIONAL_1: <sentence>
-PROFESSIONAL_2: <sentence>
-PROFESSIONAL_3: <sentence>
-CONFIDENT_1: <sentence>
-CONFIDENT_2: <sentence>
-CONFIDENT_3: <sentence>
+OUTPUT FORMAT (use exactly):
+GEN_Z_1: <rewrite>
+GEN_Z_2: <rewrite>
+GEN_Z_3: <rewrite>
+CASUAL_1: <rewrite>
+CASUAL_2: <rewrite>
+CASUAL_3: <rewrite>
+PROFESSIONAL_1: <rewrite>
+PROFESSIONAL_2: <rewrite>
+PROFESSIONAL_3: <rewrite>
+CONFIDENT_1: <rewrite>
+CONFIDENT_2: <rewrite>
+CONFIDENT_3: <rewrite>
 
-Style guides (apply in the input language, NOT in English):
-- Gen-Z: Youthful, informal, energetic tone — like how young people talk today
-- Casual: Relaxed, friendly, everyday conversational tone
-- Professional: Polished, formal, respectful — suitable for work or official use
-- Confident: Bold, assertive, with attitude — sounds self-assured and strong
+STYLE DEFINITIONS:
+- GEN_Z: Informal, modern slang, energetic — same meaning, younger tone
+- CASUAL: Friendly, relaxed, conversational — same meaning, everyday tone
+- PROFESSIONAL: Formal, polished, respectful — same meaning, work/official tone
+- CONFIDENT: Direct, assertive, strong — same meaning, bold tone
 
 Sentence: ${text}`;
 
+  // ── Groq (Active) ──────────────────────────────────────────────────────────
   const res = await axios.post(
     'https://api.groq.com/openai/v1/chat/completions',
     {
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 800,
-      temperature: 0.7,
+      temperature: 0.4,
     },
     { headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 25000 }
   );
   return res.data?.choices?.[0]?.message?.content?.trim() || '';
+
+  // ── Ollama/llama3.2:3b (commented — uncomment to use locally) ──────────────
+  // const res = await axios.post(
+  //   OLLAMA_URL,
+  //   { model: OLLAMA_MODEL, prompt, stream: false, options: { temperature: 0.4 } },
+  //   { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
+  // );
+  // return res.data?.response?.trim() || '';
 };
 
 // ─── Parse Groq output ────────────────────────────────────────────────────────
