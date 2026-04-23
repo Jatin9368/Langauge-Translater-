@@ -8,7 +8,6 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
-    "@vitalets/google-translate-api": "^9.2.1",
     "axios": "^1.14.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.1",

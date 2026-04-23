@@ -1,71 +1,121 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Alert, ActivityIndicator,
+  Alert, ActivityIndicator, Animated,
 } from 'react-native';
-import Tts from 'react-native-tts';
 import Video from 'react-native-video';
+import Tts from 'react-native-tts';
 import { useTheme } from '../ThemeContext';
 import { rephraseEmotion, BASE_URL } from '../api';
 
 const EMOTIONS = [
-  { key: 'love',  label: 'Love',  emoji: '❤️',  color: '#E91E63' },
-  { key: 'sad',   label: 'Sad',   emoji: '😢', color: '#5C6BC0' },
-  { key: 'angry', label: 'Angry', emoji: '😡', color: '#F44336' },
-  { key: 'happy', label: 'Happy', emoji: '😄', color: '#FFC107' },
+  { key: 'love',  label: 'Love',  emoji: '❤️',  color: '#E91E63', glow: 'rgba(233,30,99,0.25)'  },
+  { key: 'sad',   label: 'Sad',   emoji: '😢',  color: '#5C6BC0', glow: 'rgba(92,107,192,0.25)' },
+  { key: 'angry', label: 'Angry', emoji: '😡',  color: '#F44336', glow: 'rgba(244,67,54,0.25)'  },
+  { key: 'happy', label: 'Happy', emoji: '😄',  color: '#FF9800', glow: 'rgba(255,152,0,0.25)'  },
 ];
 
 const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
-  const { theme } = useTheme();
-  const styles = makeStyles(theme);
+  const { theme, isDark } = useTheme();
+  const s = makeStyles(theme, isDark);
+
   const [speakingEmotion, setSpeakingEmotion] = useState(null);
-  const [loadingEmotion, setLoadingEmotion] = useState(null);
-  const [audioUrl, setAudioUrl] = useState(null);
+  const [loadingEmotion, setLoadingEmotion]   = useState(null);
+  const [audioUrl, setAudioUrl] = useState(null); // { url, volume, pauseMs }
   const videoRef = useRef(null);
+  const scaleAnims = useRef(EMOTIONS.map(() => new Animated.Value(1))).current;
+  const glowAnims  = useRef(EMOTIONS.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
-    const ttsFinish = Tts.addEventListener('tts-finish', () => setSpeakingEmotion(null));
-    const ttsCancel = Tts.addEventListener('tts-cancel', () => setSpeakingEmotion(null));
-    const ttsError  = Tts.addEventListener('tts-error',  () => setSpeakingEmotion(null));
-    return () => { ttsFinish.remove(); ttsCancel.remove(); ttsError.remove(); };
+    const f = Tts.addEventListener('tts-finish', () => setSpeakingEmotion(null));
+    const c = Tts.addEventListener('tts-cancel', () => setSpeakingEmotion(null));
+    const e = Tts.addEventListener('tts-error',  () => setSpeakingEmotion(null));
+    return () => { f.remove(); c.remove(); e.remove(); };
   }, []);
+
+  const animatePress = (idx) => {
+    Animated.sequence([
+      Animated.timing(scaleAnims[idx], { toValue: 0.92, duration: 80, useNativeDriver: true }),
+      Animated.spring(scaleAnims[idx],  { toValue: 1, friction: 4, tension: 200, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const startGlow = (idx) => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnims[idx], { toValue: 1, duration: 800, useNativeDriver: true }),
+        Animated.timing(glowAnims[idx], { toValue: 0.4, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+  };
+
+  const stopGlow = (idx) => {
+    glowAnims[idx].stopAnimation();
+    glowAnims[idx].setValue(0);
+  };
 
   const stopAll = () => {
     setAudioUrl(null);
     try { Tts.stop(); } catch (_) {}
+    const idx = EMOTIONS.findIndex(e => e.key === speakingEmotion);
+    if (idx >= 0) stopGlow(idx);
     setSpeakingEmotion(null);
   };
 
-  const playTTS = async (ttsText, ttsRate, ttsPitch) => {
+  const playDeviceTTS = async (ttsText, ttsRate, ttsPitch, volume, pauseMs, emotion) => {
     try {
       if (locale) await Tts.setDefaultLanguage(locale);
       await Tts.setDefaultRate(ttsRate || 0.5);
       await Tts.setDefaultPitch(ttsPitch || 1.0);
-      console.log(`[TTS] Speaking: "${ttsText.slice(0, 30)}"`);
-      Tts.speak(ttsText);
+
+      if (emotion === 'sad') {
+        const words = ttsText.trim().split(/\s+/);
+        const chunks = [];
+        for (let i = 0; i < words.length; i += 5) {
+          chunks.push(words.slice(i, i + 5).join(' '));
+        }
+        // sad: pauseMs range 500–700, clamp to be safe
+        const sadDelay = Math.min(Math.max(pauseMs ?? 620, 500), 700);
+        for (const chunk of chunks) {
+          Tts.speak(chunk);
+          await new Promise(resolve => setTimeout(resolve, sadDelay));
+        }
+      } else if (emotion === 'love') {
+        // love: pauseMs range 250–300
+        const loveDelay = Math.min(Math.max(pauseMs ?? 280, 250), 300);
+        await new Promise(resolve => setTimeout(resolve, loveDelay));
+        Tts.speak(ttsText);
+      } else if (emotion === 'happy') {
+        // happy: pauseMs range 100–150
+        const happyDelay = Math.min(Math.max(pauseMs ?? 140, 100), 150);
+        await new Promise(resolve => setTimeout(resolve, happyDelay));
+        Tts.speak(ttsText);
+      } else if (emotion === 'angry') {
+        // angry: pauseMs range 50–80
+        const angryDelay = Math.min(Math.max(pauseMs ?? 60, 50), 80);
+        await new Promise(resolve => setTimeout(resolve, angryDelay));
+        Tts.speak(ttsText);
+      } else {
+        if (pauseMs) await new Promise(resolve => setTimeout(resolve, pauseMs));
+        Tts.speak(ttsText);
+      }
     } catch (e) {
       console.warn('[TTS] Error:', e.message);
       setSpeakingEmotion(null);
     }
   };
 
-  const handlePress = async (emotion) => {
+  const handlePress = async (emotion, idx) => {
     if (!text?.trim()) {
       Alert.alert('Translate first', 'Please translate some text first.');
       return;
     }
+    animatePress(idx);
 
-    // Same emotion → stop
-    if (speakingEmotion === emotion.key) {
-      stopAll();
-      return;
-    }
-
-    // Different emotion playing → stop first
+    if (speakingEmotion === emotion.key) { stopAll(); return; }
     if (speakingEmotion) stopAll();
 
     setLoadingEmotion(emotion.key);
-    console.log(`[EmotionSelector] Button pressed: ${emotion.key}`);
 
     try {
       const result = await rephraseEmotion({
@@ -74,19 +124,14 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
         targetLang: targetLang || 'hi',
       });
 
-      console.log(`[EmotionSelector] API result: engine=${result.engine} audioUrl=${result.audioUrl}`);
-
       setSpeakingEmotion(emotion.key);
+      startGlow(idx);
 
       if (result.audioUrl) {
-        // Play from backend URL
         const fullUrl = `${BASE_URL}${result.audioUrl}?t=${Date.now()}`;
-        console.log(`[EmotionSelector] Playing URL: ${fullUrl}`);
-        setAudioUrl(fullUrl);
+        setAudioUrl({ url: fullUrl, volume: result.volume ?? 1.0, pauseMs: result.pauseMs ?? 0 });
       } else {
-        // No audio → device TTS fallback
-        console.log('[EmotionSelector] No audioUrl, using device TTS');
-        await playTTS(text.trim(), result.ttsRate, result.ttsPitch);
+        await playDeviceTTS(result.voiceText || text.trim(), result.ttsRate, result.ttsPitch, result.volume, result.pauseMs, emotion.key);
       }
     } catch (err) {
       console.warn('[EmotionSelector] Error:', err.message);
@@ -99,55 +144,74 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
 
   return (
     <View>
-      {/* Hidden Video player for audio playback */}
-      {audioUrl ? (
+      {audioUrl && (
         <Video
           ref={videoRef}
-          source={{ uri: audioUrl }}
+          source={{ uri: audioUrl.url }}
           audioOnly={true}
-          playInBackground={false}
-          playWhenInactive={false}
-          style={{ width: 0, height: 0, position: 'absolute' }}
-          onLoad={() => console.log('[Video] Audio loaded, playing...')}
+          paused={false}
+          volume={audioUrl.volume ?? 1.0}
+          playInBackground={true}
+          playWhenInactive={true}
+          ignoreSilentSwitch="ignore"
+          style={{ width: 1, height: 1, position: 'absolute', opacity: 0 }}
+          onLoad={(data) => {
+            // Skip first ~0.3s to avoid AICTE's repeated first word
+            if (videoRef.current) videoRef.current.seek(0.1);
+          }}
           onEnd={() => {
-            console.log('[Video] Audio ended');
+            const idx = EMOTIONS.findIndex(e => e.key === speakingEmotion);
+            if (idx >= 0) stopGlow(idx);
             setSpeakingEmotion(null);
             setAudioUrl(null);
           }}
-          onError={(e) => {
-            console.warn('[Video] Error:', JSON.stringify(e));
-            setSpeakingEmotion(null);
-            setAudioUrl(null);
-            // Fallback to TTS on video error
-            playTTS(text?.trim() || '', 0.5, 1.0);
-          }}
+          onError={() => { setSpeakingEmotion(null); setAudioUrl(null); }}
         />
-      ) : null}
+      )}
 
-      <View style={styles.row}>
-        {EMOTIONS.map((emotion) => {
+      <View style={s.row}>
+        {EMOTIONS.map((emotion, idx) => {
           const isSpeaking = speakingEmotion === emotion.key;
-          const isLoading  = loadingEmotion === emotion.key;
+          const isLoading  = loadingEmotion  === emotion.key;
+          const isActive   = isSpeaking || isLoading;
+
           return (
-            <TouchableOpacity
+            <Animated.View
               key={emotion.key}
               style={[
-                styles.btn,
-                { borderColor: emotion.color },
-                isSpeaking && { backgroundColor: emotion.color },
-                disabled && styles.btnDisabled,
+                s.btnWrap,
+                { transform: [{ scale: scaleAnims[idx] }] },
+                isActive && {
+                  shadowColor: emotion.glow,
+                  shadowOpacity: glowAnims[idx],
+                  shadowRadius: 12,
+                  elevation: 8,
+                },
               ]}
-              onPress={() => handlePress(emotion)}
-              disabled={disabled || !!loadingEmotion}
             >
-              {isLoading
-                ? <ActivityIndicator size="small" color={emotion.color} />
-                : <Text style={styles.emoji}>{isSpeaking ? '⏹️' : emotion.emoji}</Text>
-              }
-              <Text style={[styles.label, { color: isSpeaking ? '#fff' : emotion.color }]}>
-                {isLoading ? '...' : isSpeaking ? 'Stop' : emotion.label}
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  s.btn,
+                  { borderColor: isActive ? emotion.color : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' },
+                  isActive
+                    ? { backgroundColor: emotion.color }
+                    : { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#fff' },
+                  disabled && s.btnDisabled,
+                ]}
+                onPress={() => handlePress(emotion, idx)}
+                disabled={disabled || !!loadingEmotion}
+                activeOpacity={0.85}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={isActive ? '#fff' : emotion.color} />
+                ) : (
+                  <Text style={s.emoji}>{isSpeaking ? '⏹' : emotion.emoji}</Text>
+                )}
+                <Text style={[s.label, { color: isActive ? '#fff' : emotion.color }]}>
+                  {isLoading ? '...' : isSpeaking ? 'Stop' : emotion.label}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
           );
         })}
       </View>
@@ -155,17 +219,24 @@ const EmotionSelector = ({ text, locale, targetLang, disabled }) => {
   );
 };
 
-const makeStyles = (theme) =>
-  StyleSheet.create({
-    row: { flexDirection: 'row', gap: 8, marginTop: 10 },
-    btn: {
-      flex: 1, alignItems: 'center', justifyContent: 'center',
-      paddingVertical: 10, borderRadius: 10, borderWidth: 1.5,
-      backgroundColor: theme.colors.surface, gap: 3,
-    },
-    btnDisabled: { opacity: 0.4 },
-    emoji: { fontSize: 20 },
-    label: { fontSize: 11, fontWeight: '700' },
-  });
+const makeStyles = (theme, isDark) => StyleSheet.create({
+  row: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  btnWrap: {
+    flex: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  btn: {
+    alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 13, borderRadius: 16, borderWidth: 1.5,
+    gap: 5,
+  },
+  btnDisabled: { opacity: 0.35 },
+  emoji: { fontSize: 22 },
+  label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.4 },
+});
 
 export default EmotionSelector;

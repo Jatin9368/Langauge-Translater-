@@ -9,31 +9,39 @@ import { rephraseStyle } from '../api';
 const STYLES_CONFIG = [
   {
     key: 'gen_z',
-    emoji: '\uD83D\uDE0E',
+    emoji: '😎',
     label: 'Gen-Z',
-    desc: 'Casual & Slangy',
+    desc: 'Youthful & Energetic',
     accent: '#7C3AED',
     light: 'rgba(124,58,237,0.07)',
   },
   {
-    key: 'funny',
-    emoji: '\uD83D\uDE02',
-    label: 'Funny',
-    desc: 'Witty & Playful',
+    key: 'casual',
+    emoji: '😊',
+    label: 'Casual',
+    desc: 'Relaxed & Friendly',
     accent: '#DB2777',
     light: 'rgba(219,39,119,0.07)',
   },
   {
-    key: 'formal',
-    emoji: '\uD83D\uDC54',
-    label: 'Formal',
-    desc: 'Professional',
+    key: 'professional',
+    emoji: '👔',
+    label: 'Professional',
+    desc: 'Polished & Formal',
     accent: '#059669',
     light: 'rgba(5,150,105,0.07)',
   },
+  {
+    key: 'confident',
+    emoji: '💪',
+    label: 'Confident',
+    desc: 'Bold & Assertive',
+    accent: '#EA580C',
+    light: 'rgba(234,88,12,0.07)',
+  },
 ];
 
-const VibeCheckSection = ({ outputText, targetLang }) => {
+const VibeCheckSection = ({ outputText, targetLang, onReplace }) => {
   const { theme, isDark } = useTheme();
   const s = makeStyles(theme, isDark);
 
@@ -88,7 +96,7 @@ const VibeCheckSection = ({ outputText, targetLang }) => {
           <View style={s.btnInner}>
             <Text style={s.btnEmoji}>{open ? '\u2715' : '\u2728'}</Text>
             <Text style={s.btnText}>{open ? 'Close' : 'Vibe Check'}</Text>
-            {!open && <View style={s.pill}><Text style={s.pillText}>3 styles</Text></View>}
+            {!open && <View style={s.pill}><Text style={s.pillText}>4 styles</Text></View>}
           </View>
         )}
       </TouchableOpacity>
@@ -113,29 +121,30 @@ const VibeCheckSection = ({ outputText, targetLang }) => {
                   </View>
                 </View>
 
-                {/* Text — 3 options */}
+                {/* Text */}
                 <View style={s.textBox}>
-                  {(result.options && result.options.length > 0 ? result.options : [result.text]).map((opt, idx) => (
-                    <View key={idx} style={[s.optRow, idx > 0 && s.optRowBorder]}>
-                      <View style={[s.dot, { backgroundColor: cfg.accent }]} />
-                      <Text style={s.cardText} selectable>{opt}</Text>
-                    </View>
-                  ))}
+                  <Text style={s.cardText} selectable>{result.text}</Text>
                 </View>
 
                 {/* Actions */}
                 <View style={s.actions}>
                   <TouchableOpacity
-                    onPress={() => { Clipboard.setString((result.options || [result.text]).join('\n')); Alert.alert('Copied!'); }}
+                    onPress={() => { Clipboard.setString(result.text); Alert.alert('Copied!'); }}
                     style={[s.actionBtn, { borderColor: cfg.accent + '50' }]}
                   >
-                    <Text style={[s.actionBtnTxt, { color: cfg.accent }]}>Copy All</Text>
+                    <Text style={[s.actionBtnTxt, { color: cfg.accent }]}>Copy</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={async () => { try { await Share.share({ message: (result.options || [result.text]).join('\n') }); } catch (e) {} }}
+                    onPress={async () => { try { await Share.share({ message: result.text }); } catch (e) {} }}
                     style={[s.actionBtn, { borderColor: cfg.accent + '50' }]}
                   >
                     <Text style={[s.actionBtnTxt, { color: cfg.accent }]}>Share</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => { onReplace(result.text); Alert.alert('Replaced!', 'Translated text updated.'); }}
+                    style={[s.actionBtn, { borderColor: cfg.accent + '50', backgroundColor: cfg.accent + '15' }]}
+                  >
+                    <Text style={[s.actionBtnTxt, { color: cfg.accent }]}>Replace</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -190,6 +199,7 @@ const makeStyles = (theme, isDark) => StyleSheet.create({
   cardText: { fontSize: 14, color: theme.colors.text, lineHeight: 22, flex: 1 },
   optRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 6 },
   optRowBorder: { borderTopWidth: 1, borderTopColor: theme.colors.border },
+  dot: { width: 6, height: 6, borderRadius: 3, marginTop: 7, flexShrink: 0 },
 
   actions: { flexDirection: 'row', gap: 6 },
   actionBtn: {
@@ -199,14 +209,6 @@ const makeStyles = (theme, isDark) => StyleSheet.create({
     alignItems: 'center',
   },
   actionBtnTxt: { fontSize: 12, fontWeight: '700' },
-  dot: { width: 6, height: 6, borderRadius: 3, marginTop: 7, flexShrink: 0 },
-  optText: { flex: 1, fontSize: 14, color: theme.colors.text, lineHeight: 22 },
-  optActions: { flexDirection: 'row', gap: 4, flexShrink: 0 },
-  optBtn: {
-    paddingHorizontal: 9, paddingVertical: 4,
-    borderRadius: 8, borderWidth: 1,
-  },
-  optBtnTxt: { fontSize: 11, fontWeight: '700' },
 });
 
 export default VibeCheckSection;
