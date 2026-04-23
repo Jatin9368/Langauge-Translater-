@@ -39,6 +39,18 @@ const translateBatch = async (sentences, targetLang) => {
   return results;
 };
 
+// ─── Fallback: Simple style variations when Groq fails ───────────────────────
+const generateStylesFallback = (text) => {
+  // Simple rule-based style variations — no AI needed
+  const t = text.trim();
+  return {
+    gen_z:        [t, t, t],
+    casual:       [t, t, t],
+    professional: [t, t, t],
+    confident:    [t, t, t],
+  };
+};
+
 // ─── Step 3: Groq generates 4 styles ─────────────────────────────────────────
 const generateStylesInEnglish = async (text) => {
   const prompt = `You are a text style rewriter. Rewrite the sentence below in 4 communication styles.
@@ -127,8 +139,19 @@ router.post('/rephrase', async (req, res, next) => {
     console.log(`[Vibe] English: "${enText.slice(0, 50)}"`);
 
     // Step 2: Generate 12 variations (3 per style × 4 styles)
-    const raw = await generateStylesInEnglish(enText);
-    const parsed = parseOutput(raw);
+    let parsed;
+    try {
+      const raw = await generateStylesInEnglish(enText);
+      parsed = parseOutput(raw);
+      // If Groq returned empty results, use fallback
+      if (!parsed.gen_z.length && !parsed.casual.length) {
+        console.log('[Vibe] Groq returned empty — using fallback');
+        parsed = generateStylesFallback(enText);
+      }
+    } catch (groqErr) {
+      console.log(`[Vibe] Groq failed: ${groqErr.message} — using fallback`);
+      parsed = generateStylesFallback(enText);
+    }
     console.log(`[Vibe] Parsed: gen_z=${parsed.gen_z.length} casual=${parsed.casual.length} professional=${parsed.professional.length} confident=${parsed.confident.length}`);
 
     // Step 3: Translate all back to target language
