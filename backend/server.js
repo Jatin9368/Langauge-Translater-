@@ -1,4 +1,7 @@
 require('dotenv').config();
+// Fix: Use Google DNS for SRV resolution on Windows
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -19,7 +22,10 @@ app.use(express.json({ limit: '10mb' }));
 
 // MongoDB connection
 mongoose
-  .connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/bharattranslate')
+  .connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/bharattranslate', {
+    serverSelectionTimeoutMS: 10000,
+    family: 4, // Force IPv4 — fixes querySrv ECONNREFUSED on Windows
+  })
   .then(() => console.log('MongoDB connected'))
   .catch((err) => console.error('MongoDB connection error:', err));
 
