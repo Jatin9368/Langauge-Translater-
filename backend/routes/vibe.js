@@ -78,7 +78,7 @@ CONFIDENT_2: <rewrite>
 CONFIDENT_3: <rewrite>
 
 STYLE DEFINITIONS:
-- GEN_Z: Informal, modern slang, energetic — same meaning, younger tone
+- GEN_Z: Use Gen-Z slang and internet culture. Examples: "no cap", "lowkey", "it's giving", "slay", "bussin", "fr fr", "hits different", "vibe check", "understood the assignment", "main character energy". Make it sound like a Gen-Z person texting their friends. Keep the core meaning but make it sound very casual and trendy.
 - CASUAL: Friendly, relaxed, conversational — same meaning, everyday tone
 - PROFESSIONAL: Formal, polished, respectful — same meaning, work/official tone
 - CONFIDENT: Direct, assertive, strong — same meaning, bold tone

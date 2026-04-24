@@ -1,12 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <!-- Base application theme. -->
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
         <item name="android:windowBackground">#F8FAFC</item>
         <item name="android:statusBarColor">#F8FAFC</item>
         <item name="android:navigationBarColor">#F8FAFC</item>
         <item name="android:windowIsTranslucent">false</item>
+        <!-- Hide Android 12 splash screen icon -->
+        <item name="android:windowSplashScreenBackground">#F8FAFC</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
     </style>
-
 </resources>
