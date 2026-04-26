@@ -25,18 +25,21 @@ const toEnglish = async (text, sourceLang) => {
 // ─── Step 2: Translate English output back to target language ─────────────────
 const translateBatch = async (sentences, targetLang) => {
   if (!targetLang || targetLang === 'en') return sentences;
-  const results = [];
-  for (const s of sentences) {
-    try {
-      const res = await axios.post(
-        'https://api.langbly.com/language/translate/v2',
-        null,
-        { params: { q: s, target: targetLang, source: 'en', key: LANGBLY_KEY }, timeout: 8000 }
-      );
-      results.push(res.data?.data?.translations?.[0]?.translatedText || s);
-    } catch (_) { results.push(s); }
-  }
-  return results;
+  const translateOne = async (s, retries = 2) => {
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const res = await axios.post(
+          'https://api.langbly.com/language/translate/v2',
+          null,
+          { params: { q: s, target: targetLang, source: 'en', key: LANGBLY_KEY }, timeout: 10000 }
+        );
+        const translated = res.data?.data?.translations?.[0]?.translatedText;
+        if (translated) return translated;
+      } catch (_) {}
+    }
+    return s; // fallback to original
+  };
+  return Promise.all(sentences.map(s => translateOne(s)));
 };
 
 // ─── Fallback: Simple style variations when Groq fails ───────────────────────
@@ -58,7 +61,7 @@ const generateStylesInEnglish = async (text) => {
 CRITICAL RULES:
 1. Keep the EXACT SAME meaning and topic — do NOT change what the sentence is about
 2. Do NOT add emotions, feelings, or sentiment that are not in the original
-3. Only change the TONE and STYLE of communication
+3. ALWAYS write in ENGLISH ONLY — never use any other language
 4. Output ONLY in English
 5. Each line must start with the exact label shown below
 6. No extra text, no explanations, no numbering
@@ -83,7 +86,7 @@ STYLE DEFINITIONS:
 - PROFESSIONAL: Formal, polished, respectful — same meaning, work/official tone
 - CONFIDENT: Direct, assertive, strong — same meaning, bold tone
 
-Sentence: ${text}`;
+Sentence (in English): ${text}`;
 
   // ── Groq (Active) ──────────────────────────────────────────────────────────
   const res = await axios.post(
