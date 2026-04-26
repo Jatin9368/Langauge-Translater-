@@ -31,8 +31,8 @@ const SplashScreen = ({ onDone }) => {
         style={StyleSheet.absoluteFill}
         resizeMode="cover"
       />
-      {/* Logos centered */}
-      <View style={splashStyle.logoContainer}>
+      {/* Top: aalogo chota + speeklogo just neeche */}
+      <View style={splashStyle.topSection}>
         <Image
           source={require('./src/assets/aalogo_transparent.png')}
           style={splashStyle.logo}
@@ -43,13 +43,16 @@ const SplashScreen = ({ onDone }) => {
           style={splashStyle.speek}
           resizeMode="contain"
         />
+      </View>
+      {/* Middle: mobile thoda bada, center mein */}
+      <View style={splashStyle.mobileSection}>
         <Image
           source={require('./src/assets/mobile_transparent.png')}
           style={splashStyle.mobile}
           resizeMode="contain"
         />
       </View>
-      {/* Powered by - bottom */}
+      {/* Bottom: powered by neeche se upar */}
       <View style={splashStyle.poweredContainer}>
         <Image
           source={require('./src/assets/powerd_transparent.png')}
@@ -63,36 +66,44 @@ const SplashScreen = ({ onDone }) => {
 
 
 const splashStyle = StyleSheet.create({
-  logoContainer: {
-    flex: 1,
+  topSection: {
+    position: 'absolute',
+    top: '12%',
+    left: 0,
+    right: 0,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 40,
   },
   logo: {
-    width: 220,
-    height: 220,
-    marginBottom: 24,
+    width: 160,
+    height: 160,
+    marginBottom: 0,
   },
   speek: {
     width: 260,
-    height: 120,
+    height: 95,
+    marginTop: -40,
+  },
+  mobileSection: {
+    position: 'absolute',
+    top: 280,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
   mobile: {
-    width: 220,
-    height: 260,
-    marginTop: 16,
+    width: 320,
+    height: 360,
   },
   poweredContainer: {
     position: 'absolute',
-    bottom: 50,
+    bottom: 55,
     left: 0,
     right: 0,
     alignItems: 'center',
   },
   powered: {
-    width: 180,
-    height: 70,
+    width: 200,
+    height: 80,
   },
 });
 
