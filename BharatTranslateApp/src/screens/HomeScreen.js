@@ -343,7 +343,7 @@ const HomeScreen = ({ route }) => {
         )}
 
         {/* ── Vibe Check ── */}
-        {outputText && <VibeCheckSection outputText={outputText} targetLang={targetLang} onReplace={handleReplace} />}
+        {outputText && <VibeCheckSection outputText={outputText} inputText={inputText} sourceLang={sourceLang} targetLang={targetLang} onReplace={handleReplace} />}
 
       </ScrollView>
     </KeyboardAvoidingView>

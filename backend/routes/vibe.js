@@ -5,11 +5,7 @@ const router = express.Router();
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const LANGBLY_KEY = process.env.LANGBLY_API_KEY;
 
-// ─── Ollama (Local) — uncomment to use instead of Groq ───────────────────────
-// const OLLAMA_URL = 'http://localhost:11434/api/generate';
-// const OLLAMA_MODEL = 'llama3.2:3b';
-
-// ─── Step 1: Translate input to English for Groq ─────────────────────────────
+// ─── Step 1: Translate input to English ──────────────────────────────────────
 const toEnglish = async (text, sourceLang) => {
   if (!sourceLang || sourceLang === 'en') return text;
   try {
@@ -42,31 +38,17 @@ const translateBatch = async (sentences, targetLang) => {
   return Promise.all(sentences.map(s => translateOne(s)));
 };
 
-// ─── Fallback: Simple style variations when Groq fails ───────────────────────
-const generateStylesFallback = (text) => {
-  // Simple rule-based style variations — no AI needed
-  const t = text.trim();
-  return {
-    gen_z:        [t, t, t],
-    casual:       [t, t, t],
-    professional: [t, t, t],
-    confident:    [t, t, t],
-  };
-};
-
-// ─── Step 3: Groq generates 4 styles ─────────────────────────────────────────
-const generateStylesInEnglish = async (text) => {
+// ─── Gemma2 via Groq generates 4 styles ──────────────────────────────────────
+const generateStylesWithAI = async (text) => {
   const prompt = `You are a text style rewriter. Rewrite the sentence below in 4 communication styles.
 
-CRITICAL RULES:
-1. Keep the EXACT SAME meaning and topic — do NOT change what the sentence is about
-2. Do NOT add emotions, feelings, or sentiment that are not in the original
-3. ALWAYS write in ENGLISH ONLY — never use any other language
-4. Output ONLY in English
-5. Each line must start with the exact label shown below
-6. No extra text, no explanations, no numbering
+RULES:
+1. Keep the EXACT SAME meaning — do NOT change what the sentence is about
+2. ALWAYS write in ENGLISH ONLY
+3. Each line must start with the exact label shown
+4. No extra text, no explanations
 
-OUTPUT FORMAT (use exactly):
+OUTPUT FORMAT:
 GEN_Z_1: <rewrite>
 GEN_Z_2: <rewrite>
 GEN_Z_3: <rewrite>
@@ -80,37 +62,27 @@ CONFIDENT_1: <rewrite>
 CONFIDENT_2: <rewrite>
 CONFIDENT_3: <rewrite>
 
-STYLE DEFINITIONS:
-- GEN_Z: Use Gen-Z slang and internet culture. Examples: "no cap", "lowkey", "it's giving", "slay", "bussin", "fr fr", "hits different", "vibe check", "understood the assignment", "main character energy". Make it sound like a Gen-Z person texting their friends. Keep the core meaning but make it sound very casual and trendy.
-- CASUAL: Friendly, relaxed, conversational — same meaning, everyday tone
-- PROFESSIONAL: Formal, polished, respectful — same meaning, work/official tone
-- CONFIDENT: Direct, assertive, strong — same meaning, bold tone
+STYLES:
+- GEN_Z: Gen-Z slang, internet culture, casual texting (no cap, lowkey, fr fr, it's giving, slay)
+- CASUAL: Friendly, relaxed, everyday tone
+- PROFESSIONAL: Formal, polished, work/official tone
+- CONFIDENT: Direct, assertive, bold tone
 
-Sentence (in English): ${text}`;
+Sentence: ${text}`;
 
-  // ── Groq (Active) ──────────────────────────────────────────────────────────
   const res = await axios.post(
     'https://api.groq.com/openai/v1/chat/completions',
     {
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 800,
-      temperature: 0.4,
+      max_tokens: 600,
+      temperature: 0.5,
     },
-    { headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 25000 }
+    { headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 20000 }
   );
   return res.data?.choices?.[0]?.message?.content?.trim() || '';
-
-  // ── Ollama/llama3.2:3b (commented — uncomment to use locally) ──────────────
-  // const res = await axios.post(
-  //   OLLAMA_URL,
-  //   { model: OLLAMA_MODEL, prompt, stream: false, options: { temperature: 0.4 } },
-  //   { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
-  // );
-  // return res.data?.response?.trim() || '';
 };
 
-// ─── Parse Groq output ────────────────────────────────────────────────────────
 const parseOutput = (raw) => {
   const extract = (prefix) => {
     const results = [];
@@ -128,32 +100,43 @@ const parseOutput = (raw) => {
   };
 };
 
+// ─── Rule-based fallback ──────────────────────────────────────────────────────
+const generateStylesInEnglish = (text) => {
+  const t = text.trim();
+  const lower = t.toLowerCase();
+  return {
+    gen_z:        [`no cap, ${lower} fr fr`, `lowkey ${lower}`, `it's giving "${lower}" vibes`],
+    casual:       [`so basically, ${lower}`, `just so you know, ${lower}`, `hey, ${lower}`],
+    professional: [`I would like to convey that ${lower}.`, `Please be informed that ${lower}.`, `It is worth noting that ${lower}.`],
+    confident:    [`${t}. Period.`, `Let me be clear — ${lower}.`, `Without a doubt, ${lower}.`],
+  };
+};
+
 // ─── POST /api/vibe/rephrase ──────────────────────────────────────────────────
 router.post('/rephrase', async (req, res, next) => {
   try {
-    const { text, targetLang } = req.body;
+    const { text, sourceLang, targetLang } = req.body;
     if (!text?.trim()) return res.status(400).json({ success: false, error: 'Text is required' });
 
     const lang = targetLang || 'en';
-    console.log(`[Vibe] "${text.slice(0, 50)}" | lang=${lang}`);
+    console.log(`[Vibe] "${text.slice(0, 50)}" | sourceLang=${sourceLang} lang=${lang}`);
 
-    // Step 1: Convert to English for Groq context
-    const enText = await toEnglish(text.trim(), lang);
+    // Step 1: Convert to English using sourceLang for accuracy
+    const enText = await toEnglish(text.trim(), sourceLang || lang);
     console.log(`[Vibe] English: "${enText.slice(0, 50)}"`);
 
-    // Step 2: Generate 12 variations (3 per style × 4 styles)
+    // Step 2: Generate 12 variations using Gemma2 AI
     let parsed;
     try {
-      const raw = await generateStylesInEnglish(enText);
+      const raw = await generateStylesWithAI(enText);
       parsed = parseOutput(raw);
-      // If Groq returned empty results, use fallback
       if (!parsed.gen_z.length && !parsed.casual.length) {
-        console.log('[Vibe] Groq returned empty — using fallback');
-        parsed = generateStylesFallback(enText);
+        parsed = generateStylesInEnglish(enText);
       }
-    } catch (groqErr) {
-      console.log(`[Vibe] Groq failed: ${groqErr.message} — using fallback`);
-      parsed = generateStylesFallback(enText);
+    } catch (err) {
+      console.log(`[Vibe] Gemma2 failed: ${err.message} — using fallback`);
+      console.log(`[Vibe] Error details:`, err.response?.data);
+      parsed = generateStylesInEnglish(enText);
     }
     console.log(`[Vibe] Parsed: gen_z=${parsed.gen_z.length} casual=${parsed.casual.length} professional=${parsed.professional.length} confident=${parsed.confident.length}`);
 

@@ -66,9 +66,9 @@ export const rephraseEmotion = async ({ text, emotion, targetLang }) => {
 
 // ─── Vibe Check (Style Rephrase) ──────────────────────────────────────────────
 
-export const rephraseStyle = async ({ text, targetLang }) => {
+export const rephraseStyle = async ({ text, sourceLang, targetLang }) => {
   try {
-    const res = await api.post('/api/vibe/rephrase', { text, targetLang });
+    const res = await api.post('/api/vibe/rephrase', { text, sourceLang, targetLang });
     return res.data;
   } catch (err) {
     throw err;

@@ -41,7 +41,7 @@ const STYLES_CONFIG = [
   },
 ];
 
-const VibeCheckSection = ({ outputText, targetLang, onReplace }) => {
+const VibeCheckSection = ({ outputText, inputText, sourceLang, targetLang, onReplace }) => {
   const { theme, isDark } = useTheme();
   const s = makeStyles(theme, isDark);
 
@@ -66,7 +66,9 @@ const VibeCheckSection = ({ outputText, targetLang, onReplace }) => {
     }
     setLoading(true);
     try {
-      const result = await rephraseStyle({ text: outputText, targetLang });
+      // Use inputText (original) with targetLang so all styles come in same language
+      const textToRephrase = inputText?.trim() || outputText;
+      const result = await rephraseStyle({ text: textToRephrase, sourceLang, targetLang });
       setResults(result.styles);
       setOpen(true);
       Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();

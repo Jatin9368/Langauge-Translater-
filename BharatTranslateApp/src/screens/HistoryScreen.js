@@ -128,16 +128,15 @@ const HistoryScreen = ({ navigation }) => {
       {/* Actions */}
       <View style={s.cardFooter}>
         <TouchableOpacity
-          style={s.footerBtn}
+          style={s.copyBtn}
           onPress={() => { Clipboard.setString(item.translatedText); Alert.alert('Copied!'); }}
           activeOpacity={0.7}
         >
-          <Text style={s.footerBtnIcon}>📋</Text>
-          <Text style={s.footerBtnTxt}>Copy</Text>
+          <Text style={s.copyBtnIcon}>📋</Text>
+          <Text style={s.copyBtnTxt}>Copy</Text>
         </TouchableOpacity>
-        <View style={s.footerDivider} />
         <TouchableOpacity
-          style={[s.footerBtn, s.footerBtnPrimary]}
+          style={s.useAgainBtn}
           onPress={() => navigation.navigate('Home', {
             retranslate: {
               text: item.sourceText,
@@ -148,8 +147,8 @@ const HistoryScreen = ({ navigation }) => {
           })}
           activeOpacity={0.7}
         >
-          <Text style={s.footerBtnIcon}>🔄</Text>
-          <Text style={[s.footerBtnTxt, { color: '#6366F1' }]}>Use Again</Text>
+          <Text style={s.useAgainBtnIcon}>🔄</Text>
+          <Text style={s.useAgainBtnTxt}>Use Again</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -239,73 +238,87 @@ const makeStyles = (theme, isDark) => StyleSheet.create({
 
   // ── Card ──────────────────────────────────────────────────────────────────
   card: {
-    backgroundColor: isDark ? 'rgba(99,102,241,0.07)' : '#F5F6FF',
+    backgroundColor: isDark ? '#1E1E2E' : '#F5F6FF',
     borderRadius: 20, marginBottom: 14,
-    borderWidth: 1, borderColor: isDark ? 'rgba(99,102,241,0.2)' : '#E0E2FF',
+    borderWidth: 1, borderColor: isDark ? 'rgba(99,102,241,0.35)' : '#E0E2FF',
     overflow: 'hidden',
-    shadowColor: '#6366F1',
+    shadowColor: isDark ? '#6366F1' : '#6366F1',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: isDark ? 0.15 : 0.08,
-    shadowRadius: 10, elevation: 3,
+    shadowOpacity: isDark ? 0.3 : 0.08,
+    shadowRadius: 10, elevation: isDark ? 6 : 3,
   },
 
   // Card header
   cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 14, paddingVertical: 10,
-    backgroundColor: isDark ? 'rgba(99,102,241,0.12)' : '#ECEEFF',
-    borderBottomWidth: 1, borderBottomColor: isDark ? 'rgba(99,102,241,0.2)' : '#E0E2FF',
+    backgroundColor: isDark ? 'rgba(99,102,241,0.2)' : '#ECEEFF',
+    borderBottomWidth: 1, borderBottomColor: isDark ? 'rgba(99,102,241,0.3)' : '#E0E2FF',
   },
   langRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   langBadge: {
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
-    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.8)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.8)',
   },
-  langBadgeTxt: { fontSize: 12, fontWeight: '700', color: isDark ? '#A5B4FC' : '#4338CA' },
+  langBadgeTxt: { fontSize: 12, fontWeight: '700', color: isDark ? '#C7D2FE' : '#4338CA' },
   langBadgeTarget: { backgroundColor: '#6366F1' },
   langBadgeTargetTxt: { color: '#fff' },
-  arrow: { fontSize: 14, color: isDark ? '#818CF8' : '#6366F1', fontWeight: '700' },
+  arrow: { fontSize: 14, color: isDark ? '#A5B4FC' : '#6366F1', fontWeight: '700' },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  timeText: { fontSize: 11, color: theme.colors.textSecondary },
+  timeText: { fontSize: 11, color: isDark ? '#94A3B8' : theme.colors.textSecondary },
   deleteBtn: { padding: 2 },
-  deleteTxt: { fontSize: 13, color: theme.colors.textSecondary },
+  deleteTxt: { fontSize: 13, color: isDark ? '#F87171' : theme.colors.textSecondary },
 
   // Card body
   cardBody: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4 },
   textBlock: { gap: 4 },
   textLabel: {
     fontSize: 10, fontWeight: '800', letterSpacing: 0.8,
-    color: theme.colors.textSecondary, textTransform: 'uppercase',
+    color: isDark ? '#94A3B8' : theme.colors.textSecondary, textTransform: 'uppercase',
   },
   sourceText: {
-    fontSize: 14, color: theme.colors.textSecondary, lineHeight: 21,
+    fontSize: 14, color: isDark ? '#CBD5E1' : theme.colors.textSecondary, lineHeight: 21,
   },
   divider: {
-    height: 1, backgroundColor: theme.colors.border,
+    height: 1, backgroundColor: isDark ? 'rgba(99,102,241,0.25)' : theme.colors.border,
     marginVertical: 10,
   },
   translatedText: {
-    fontSize: 16, color: theme.colors.text,
+    fontSize: 16, color: isDark ? '#F1F5F9' : theme.colors.text,
     lineHeight: 24, fontWeight: '600',
   },
 
   // Card footer
   cardFooter: {
     flexDirection: 'row', alignItems: 'center',
-    borderTopWidth: 1, borderTopColor: theme.colors.border,
-    marginTop: 8,
+    gap: 10,
+    padding: 12,
+    borderTopWidth: 1, borderTopColor: isDark ? 'rgba(99,102,241,0.25)' : '#E0E2FF',
+    marginTop: 4,
   },
-  footerBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 6,
-    paddingVertical: 11,
+  copyBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 9, borderRadius: 12,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9',
+    borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.12)' : '#E2E8F0',
   },
-  footerBtnPrimary: {
-    backgroundColor: isDark ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.08)',
+  copyBtnIcon: { fontSize: 14 },
+  copyBtnTxt: { fontSize: 13, fontWeight: '700', color: isDark ? '#CBD5E1' : '#475569' },
+  useAgainBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 9, borderRadius: 12,
+    backgroundColor: isDark ? 'rgba(99,102,241,0.25)' : '#6366F1',
+    borderWidth: 1, borderColor: isDark ? 'rgba(99,102,241,0.5)' : '#6366F1',
   },
-  footerDivider: { width: 1, height: '60%', backgroundColor: theme.colors.border },
+  useAgainBtnIcon: { fontSize: 14 },
+  useAgainBtnTxt: { fontSize: 13, fontWeight: '700', color: '#fff' },
+
+  // old footer styles kept for safety
+  footerBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11 },
+  footerBtnPrimary: { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.08)' },
+  footerDivider: { width: 1, height: '60%', backgroundColor: isDark ? 'rgba(99,102,241,0.25)' : theme.colors.border },
   footerBtnIcon: { fontSize: 14 },
-  footerBtnTxt: { fontSize: 13, fontWeight: '700', color: theme.colors.textSecondary },
+  footerBtnTxt: { fontSize: 13, fontWeight: '700', color: isDark ? '#94A3B8' : theme.colors.textSecondary },
 
   // Empty state
   empty: {
