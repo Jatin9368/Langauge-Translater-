@@ -6,7 +6,6 @@
         <item name="android:statusBarColor">#F8FAFC</item>
         <item name="android:navigationBarColor">#F8FAFC</item>
         <item name="android:windowIsTranslucent">false</item>
-        <!-- Hide Android 12 splash screen icon -->
         <item name="android:windowSplashScreenBackground">#F8FAFC</item>
         <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
     </style>

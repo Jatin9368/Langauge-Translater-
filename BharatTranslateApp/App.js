@@ -2,15 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Text, View, StyleSheet, Image, Animated, StatusBar, Dimensions } from 'react-native';
+import { Text, View, StyleSheet, Image, Animated, StatusBar } from 'react-native';
 
 import { ThemeProvider, useTheme } from './src/ThemeContext';
 import HomeScreen from './src/screens/HomeScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 
 const Tab = createBottomTabNavigator();
-
-const { width, height } = Dimensions.get('window');
 
 // ─── Splash Screen ────────────────────────────────────────────────────────────
 const SplashScreen = ({ onDone }) => {
@@ -25,27 +23,76 @@ const SplashScreen = ({ onDone }) => {
   }, []);
 
   return (
-    <Animated.View style={[splashStyles.container, { opacity: fadeAnim }]}>
-      <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
+    <Animated.View style={[StyleSheet.absoluteFill, { opacity: fadeAnim, zIndex: 999 }]}>
+      <StatusBar hidden />
+      {/* Background */}
       <Image
-        source={require('./src/assets/anu.png')}
-        style={splashStyles.image}
+        source={require('./src/assets/background.png')}
+        style={StyleSheet.absoluteFill}
         resizeMode="cover"
       />
+      {/* Logos centered */}
+      <View style={splashStyle.logoContainer}>
+        <Image
+          source={require('./src/assets/aalogo_transparent.png')}
+          style={splashStyle.logo}
+          resizeMode="contain"
+        />
+        <Image
+          source={require('./src/assets/speeklogo_transparent.png')}
+          style={splashStyle.speek}
+          resizeMode="contain"
+        />
+        <Image
+          source={require('./src/assets/mobile_transparent.png')}
+          style={splashStyle.mobile}
+          resizeMode="contain"
+        />
+      </View>
+      {/* Powered by - bottom */}
+      <View style={splashStyle.poweredContainer}>
+        <Image
+          source={require('./src/assets/powerd_transparent.png')}
+          style={splashStyle.powered}
+          resizeMode="contain"
+        />
+      </View>
     </Animated.View>
   );
 };
 
-const splashStyles = StyleSheet.create({
-  container: {
-    position: 'absolute', top: 0, left: 0,
-    width, height,
-    backgroundColor: '#FFFFFF',
-    zIndex: 999,
+
+const splashStyle = StyleSheet.create({
+  logoContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 40,
   },
-  image: {
-    width,
-    height,
+  logo: {
+    width: 220,
+    height: 220,
+    marginBottom: 24,
+  },
+  speek: {
+    width: 260,
+    height: 120,
+  },
+  mobile: {
+    width: 220,
+    height: 260,
+    marginTop: 16,
+  },
+  poweredContainer: {
+    position: 'absolute',
+    bottom: 50,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  powered: {
+    width: 180,
+    height: 70,
   },
 });
 
