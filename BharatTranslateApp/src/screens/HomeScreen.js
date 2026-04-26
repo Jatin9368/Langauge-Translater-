@@ -183,7 +183,10 @@ const HomeScreen = ({ route }) => {
         {/* ── Header ── */}
         <View style={s.header}>
           <View style={s.logoRow}>
-            <Image source={require('../assets/logo1.png')} style={s.logoImage} />
+            <Image 
+              source={isDark ? require('../assets/mainlogo_dark.png') : require('../assets/mainlogo_transparent.png')} 
+              style={s.logoImage} 
+            />
           </View>
           <TouchableOpacity onPress={toggleTheme} style={s.themeBtn} activeOpacity={0.7}>
             <Text style={s.themeBtnTxt}>{isDark ? '☀️' : '🌙'}</Text>
