@@ -74,8 +74,8 @@ const splashStyle = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    width: 160,
-    height: 160,
+    width: 120,
+    height: 120,
     marginBottom: 0,
   },
   speek: {
@@ -85,25 +85,25 @@ const splashStyle = StyleSheet.create({
   },
   mobileSection: {
     position: 'absolute',
-    top: 280,
+    top: 150,
     left: 0,
     right: 0,
     alignItems: 'center',
   },
   mobile: {
-    width: 320,
-    height: 360,
+    width: 420,
+    height: 580,
   },
   poweredContainer: {
     position: 'absolute',
-    bottom: 55,
+    bottom: 75,
     left: 0,
     right: 0,
     alignItems: 'center',
   },
   powered: {
-    width: 200,
-    height: 80,
+    width: 420,
+    height: 190,
   },
 });
 
