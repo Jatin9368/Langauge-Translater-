@@ -3,82 +3,83 @@ const axios = require('axios');
 const router = express.Router();
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const LANGBLY_KEY = process.env.LANGBLY_API_KEY;
+const PRAVAHAI_URL = process.env.PRAVAHAI_URL || 'https://pravahai.aicte-india.org/api/translatebulk';
+
+const PRAVAHAI_CODE_MAP = {
+  hi:'hi-IN',bn:'bn-IN',ta:'ta-IN',te:'te-IN',mr:'mr-IN',gu:'gu-IN',
+  kn:'kn-IN',ml:'ml-IN',pa:'pa-IN',or:'or-IN',as:'as-IN',ur:'ur-IN',
+  ne:'ne-IN',sa:'sa-IN',en:'en-IN',
+  es:'es-FO',fr:'fr-FO',de:'de-FO',ja:'ja-FO',ko:'ko-FO',ar:'ar-FO',
+  ru:'ru-FO',pt:'pt-FO',it:'it-FO',tr:'tr-FO',nl:'nl-FO',zh:'zh-FO',
+  'zh-CN':'zh-FO',
+};
+const PRAVAHAI_SUPPORTED = new Set(['hi','bn','ta','te','mr','gu','kn','ml','pa','or','as','ur','ne','sa']);
+
+// ─── Translate using Pravahai or MyMemory ─────────────────────────────────────
+const translateText = async (text, sourceLang, targetLang) => {
+  if (!targetLang || targetLang === 'en') return text;
+  // Pravahai for Indian languages
+  if (PRAVAHAI_SUPPORTED.has(targetLang)) {
+    try {
+      const srcCode = PRAVAHAI_CODE_MAP[sourceLang] || 'en-IN';
+      const tgtCode = PRAVAHAI_CODE_MAP[targetLang];
+      const res = await axios.post(PRAVAHAI_URL,
+        { input: [{ source: text }], config: { language: { sourceLanguage: srcCode, targetLanguage: tgtCode } } },
+        { headers: { 'Content-Type': 'application/json' }, timeout: 10000 }
+      );
+      return res.data?.output?.[0]?.target || text;
+    } catch (_) {}
+  }
+  // MyMemory for others
+  try {
+    const langPair = `${sourceLang || 'en'}|${targetLang}`;
+    const res = await axios.get('https://api.mymemory.translated.net/get',
+      { params: { q: text, langpair: langPair }, timeout: 10000 }
+    );
+    return res.data?.responseData?.translatedText || text;
+  } catch (_) { return text; }
+};
 
 // ─── Step 1: Translate input to English ──────────────────────────────────────
 const toEnglish = async (text, sourceLang) => {
   if (!sourceLang || sourceLang === 'en') return text;
-  try {
-    const res = await axios.post(
-      'https://api.langbly.com/language/translate/v2',
-      null,
-      { params: { q: text, target: 'en', source: sourceLang, key: LANGBLY_KEY }, timeout: 8000 }
-    );
-    return res.data?.data?.translations?.[0]?.translatedText || text;
-  } catch (_) { return text; }
+  return translateText(text, sourceLang, 'en');
 };
 
-// ─── Step 2: Translate English output back to target language ─────────────────
+// ─── Step 2: Translate batch back to target language ─────────────────────────
 const translateBatch = async (sentences, targetLang) => {
   if (!targetLang || targetLang === 'en') return sentences;
-  const translateOne = async (s, retries = 2) => {
-    for (let i = 0; i <= retries; i++) {
-      try {
-        const res = await axios.post(
-          'https://api.langbly.com/language/translate/v2',
-          null,
-          { params: { q: s, target: targetLang, source: 'en', key: LANGBLY_KEY }, timeout: 10000 }
-        );
-        const translated = res.data?.data?.translations?.[0]?.translatedText;
-        if (translated) return translated;
-      } catch (_) {}
-    }
-    return s; // fallback to original
-  };
-  return Promise.all(sentences.map(s => translateOne(s)));
+  return Promise.all(sentences.map(s => translateText(s, 'en', targetLang)));
 };
 
-// ─── Gemma2 via Groq generates 4 styles ──────────────────────────────────────
+// ─── Groq AI generates 4 styles ──────────────────────────────────────────────
 const generateStylesWithAI = async (text) => {
-  const prompt = `You are a text style rewriter. Rewrite the sentence below in 4 communication styles.
+  const prompt = `Rewrite this sentence in 4 styles. ENGLISH ONLY. Strict rules:
+1. Keep EXACT same meaning - do NOT change subject, gender, or topic
+2. Do NOT change male to female or female to male
+3. Only change the tone/style, nothing else
 
-RULES:
-1. Keep the EXACT SAME meaning — do NOT change what the sentence is about
-2. ALWAYS write in ENGLISH ONLY
-3. Each line must start with the exact label shown
-4. No extra text, no explanations
+Exact format:
+GEN_Z_1: ...
+GEN_Z_2: ...
+GEN_Z_3: ...
+CASUAL_1: ...
+CASUAL_2: ...
+CASUAL_3: ...
+PROFESSIONAL_1: ...
+PROFESSIONAL_2: ...
+PROFESSIONAL_3: ...
+CONFIDENT_1: ...
+CONFIDENT_2: ...
+CONFIDENT_3: ...
 
-OUTPUT FORMAT:
-GEN_Z_1: <rewrite>
-GEN_Z_2: <rewrite>
-GEN_Z_3: <rewrite>
-CASUAL_1: <rewrite>
-CASUAL_2: <rewrite>
-CASUAL_3: <rewrite>
-PROFESSIONAL_1: <rewrite>
-PROFESSIONAL_2: <rewrite>
-PROFESSIONAL_3: <rewrite>
-CONFIDENT_1: <rewrite>
-CONFIDENT_2: <rewrite>
-CONFIDENT_3: <rewrite>
-
-STYLES:
-- GEN_Z: Gen-Z slang, internet culture, casual texting (no cap, lowkey, fr fr, it's giving, slay)
-- CASUAL: Friendly, relaxed, everyday tone
-- PROFESSIONAL: Formal, polished, work/official tone
-- CONFIDENT: Direct, assertive, bold tone
-
+GEN_Z=Gen-Z slang (no cap, lowkey, fr fr, bussin), CASUAL=friendly everyday, PROFESSIONAL=formal polished, CONFIDENT=bold direct.
 Sentence: ${text}`;
 
   const res = await axios.post(
     'https://api.groq.com/openai/v1/chat/completions',
-    {
-      model: 'llama-3.1-8b-instant',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 600,
-      temperature: 0.5,
-    },
-    { headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 20000 }
+    { model: 'llama-3.1-8b-instant', messages: [{ role: 'user', content: prompt }], max_tokens: 400, temperature: 0.5 },
+    { headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 35000 }
   );
   return res.data?.choices?.[0]?.message?.content?.trim() || '';
 };
@@ -92,12 +93,7 @@ const parseOutput = (raw) => {
     }
     return results;
   };
-  return {
-    gen_z:        extract('GEN_Z'),
-    casual:       extract('CASUAL'),
-    professional: extract('PROFESSIONAL'),
-    confident:    extract('CONFIDENT'),
-  };
+  return { gen_z: extract('GEN_Z'), casual: extract('CASUAL'), professional: extract('PROFESSIONAL'), confident: extract('CONFIDENT') };
 };
 
 // ─── Rule-based fallback ──────────────────────────────────────────────────────
@@ -125,7 +121,7 @@ router.post('/rephrase', async (req, res, next) => {
     const enText = await toEnglish(text.trim(), sourceLang || lang);
     console.log(`[Vibe] English: "${enText.slice(0, 50)}"`);
 
-    // Step 2: Generate 12 variations using Gemma2 AI
+    // Step 2: Generate 12 variations using Groq AI, fallback to rule-based
     let parsed;
     try {
       const raw = await generateStylesWithAI(enText);
@@ -134,8 +130,7 @@ router.post('/rephrase', async (req, res, next) => {
         parsed = generateStylesInEnglish(enText);
       }
     } catch (err) {
-      console.log(`[Vibe] Gemma2 failed: ${err.message} — using fallback`);
-      console.log(`[Vibe] Error details:`, err.response?.data);
+      console.log(`[Vibe] Groq failed: ${err.message} — using fallback`);
       parsed = generateStylesInEnglish(enText);
     }
     console.log(`[Vibe] Parsed: gen_z=${parsed.gen_z.length} casual=${parsed.casual.length} professional=${parsed.professional.length} confident=${parsed.confident.length}`);

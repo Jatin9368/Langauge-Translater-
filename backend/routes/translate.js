@@ -10,23 +10,13 @@ const PRAVAHAI_URL = process.env.PRAVAHAI_URL || 'https://pravahai.aicte-india.o
 // ─── Pravahai Language Code Mapping ─────────────────────────────────────────
 // App uses short codes (hi, ta, en...) → Pravahai needs (hi-IN, ta-IN, en-IN, fr-FO...)
 const PRAVAHAI_CODE_MAP = {
-  // Indian languages → xx-IN
+  // Indian languages only → xx-IN
   hi: 'hi-IN', bn: 'bn-IN', ta: 'ta-IN', te: 'te-IN', mr: 'mr-IN',
   gu: 'gu-IN', kn: 'kn-IN', ml: 'ml-IN', pa: 'pa-IN', or: 'or-IN',
   as: 'as-IN', ur: 'ur-IN', ne: 'ne-IN', sa: 'sa-IN',
   mai: 'mai-IN', sat: 'sat-IN', ks: 'ks-ar-IN', kok: 'gom-IN',
   sd: 'sd-dn-IN', doi: 'doi-IN', 'mni-Mtei': 'mni-IN', brx: 'brx-IN',
   en: 'en-IN',
-  // Foreign languages → xx-FO
-  es: 'es-FO', fr: 'fr-FO', de: 'de-FO', ja: 'ja-FO', ko: 'ko-FO',
-  ar: 'ar-FO', ru: 'ru-FO', pt: 'pt-FO', it: 'it-FO', tr: 'tr-FO',
-  nl: 'nl-FO', pl: 'pl-FO', th: 'th-FO', vi: 'vi-FO', id: 'id-FO',
-  ms: 'ms-FO', fa: 'fa-FO', sw: 'sw-FO', 'zh-CN': 'zh-FO', uk: 'uk-FO',
-  bg: 'bg-FO', cs: 'cs-FO', da: 'da-FO', fi: 'fi-FO', el: 'el-FO',
-  hr: 'hr-FO', hu: 'hu-FO', ro: 'ro-FO', sk: 'sk-FO', sv: 'sv-FO',
-  he: 'he-FO', si: 'si-FO', ka: 'ka-FO', az: 'az-FO', kk: 'kk-FO',
-  uz: 'uz-FO', mn: 'mn-FO', km: 'km-FO', lo: 'lo-FO', my: 'my-FO',
-  am: 'am-FO', yo: 'yo-FO', ig: 'ig-FO', ha: 'ha-FO', zu: 'zu-FO',
 };
 
 const toPravahaiCode = (code) => {
@@ -45,8 +35,8 @@ const toLangblyCode = (code) => LANGBLY_CODE_MAP[code] || code;
 // ─── Langbly Translation ─────────────────────────────────────────────────────
 const translateWithLangbly = async (text, sourceLang, targetLang) => {
   const target = toLangblyCode(targetLang);
-  const params = { q: text, target, key: LANGBLY_KEY };
-  if (sourceLang && sourceLang !== 'auto') params.source = toLangblyCode(sourceLang);
+  const source = (!sourceLang || sourceLang === 'auto') ? 'en' : toLangblyCode(sourceLang);
+  const params = { q: text, target, source, key: LANGBLY_KEY };
   const res = await axios.post(LANGBLY_URL, null, { params, timeout: 15000 });
   const translation = res.data?.data?.translations?.[0];
   if (!translation?.translatedText) throw new Error('Empty Langbly response');
@@ -156,55 +146,35 @@ router.post('/', async (req, res, next) => {
       'as','ur','ne','sa','mai','sat','ks','kok','sd','doi','mni-Mtei','brx',
     ]);
 
-    // ── Primary: Langbly (works for all languages) ──
-    if (LANGBLY_KEY) {
+    // ── Indian languages → Pravahai ──
+    if (PRAVAHAI_SUPPORTED.has(targetLang)) {
       try {
-        const result = await translateWithLangbly(text.trim(), sourceLang, targetLang);
+        const result = await translateWithPravahai(text.trim(), targetLang);
         translatedText = result.text;
-        detectedLang = result.detectedLang;
-        usedEngine = 'langbly';
-        console.log(`[Langbly] →${targetLang}: OK`);
-      } catch (langblyErr) {
-        console.log(`[Langbly] Failed: ${langblyErr.message}`);
-
-        // ── Fallback 1: Pravahai for Indian languages ──
-        if (PRAVAHAI_SUPPORTED.has(targetLang)) {
-          try {
-            const result = await translateWithPravahai(text.trim(), targetLang);
-            translatedText = result.text;
-            usedEngine = 'pravahai';
-            console.log(`[Pravahai] →${targetLang}: OK`);
-          } catch (pravahaiErr) {
-            console.log(`[Pravahai] Failed: ${pravahaiErr.message} — MyMemory fallback`);
-            try {
-              const result = await translateWithMyMemory(text.trim(), sourceLang, targetLang);
-              translatedText = result.text;
-              detectedLang = result.detectedLang;
-              usedEngine = 'mymemory';
-            } catch (mmErr) {
-              return res.status(503).json({ success: false, error: 'Translation unavailable. Try again.' });
-            }
-          }
-        } else {
-          // ── Fallback 2: MyMemory for foreign languages ──
-          try {
-            const result = await translateWithMyMemory(text.trim(), sourceLang, targetLang);
-            translatedText = result.text;
-            detectedLang = result.detectedLang;
-            usedEngine = 'mymemory';
-          } catch (mmErr) {
-            return res.status(503).json({ success: false, error: 'Translation unavailable. Try again.' });
-          }
+        usedEngine = 'pravahai';
+        console.log(`[Pravahai] →${targetLang}: OK`);
+      } catch (e) {
+        console.log(`[Pravahai] Failed: ${e.message} — MyMemory fallback`);
+        try {
+          const result = await translateWithMyMemory(text.trim(), sourceLang, targetLang);
+          translatedText = result.text;
+          detectedLang = result.detectedLang;
+          usedEngine = 'mymemory';
+        } catch (mmErr) {
+          return res.status(503).json({ success: false, error: 'Translation unavailable. Try again.' });
         }
       }
     } else {
-      // ── No Langbly key: Pravahai for Indian, MyMemory for others ──
-      if (PRAVAHAI_SUPPORTED.has(targetLang)) {
+      // ── Foreign languages → Langbly → MyMemory fallback ──
+      if (LANGBLY_KEY) {
         try {
-          const result = await translateWithPravahai(text.trim(), targetLang);
+          const result = await translateWithLangbly(text.trim(), sourceLang, targetLang);
           translatedText = result.text;
-          usedEngine = 'pravahai';
-        } catch (e) {
+          detectedLang = result.detectedLang;
+          usedEngine = 'langbly';
+          console.log(`[Langbly] →${targetLang}: OK`);
+        } catch (langblyErr) {
+          console.log(`[Langbly] Failed: ${langblyErr.message} — MyMemory fallback`);
           try {
             const result = await translateWithMyMemory(text.trim(), sourceLang, targetLang);
             translatedText = result.text;

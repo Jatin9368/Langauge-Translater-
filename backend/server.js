@@ -1,4 +1,8 @@
 require('dotenv').config();
+// Fix SSL certificate issues on Windows (development only)
+if (process.env.NODE_ENV !== 'production') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
 // Fix: Use Google DNS for SRV resolution on Windows
 const dns = require('dns');
 dns.setServers(['8.8.8.8', '8.8.4.4']);
