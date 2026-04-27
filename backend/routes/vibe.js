@@ -42,7 +42,7 @@ const translateText = async (text, sourceLang, targetLang) => {
 
 // ─── Step 1: Translate input to English ──────────────────────────────────────
 const toEnglish = async (text, sourceLang) => {
-  if (!sourceLang || sourceLang === 'en') return text;
+  if (!sourceLang || sourceLang === 'en' || sourceLang === 'auto') return text;
   return translateText(text, sourceLang, 'en');
 };
 

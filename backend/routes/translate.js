@@ -142,8 +142,8 @@ router.post('/', async (req, res, next) => {
 
     // Indian languages supported by Pravahai (AICTE) — used as fallback for these
     const PRAVAHAI_SUPPORTED = new Set([
-      'hi','bn','ta','te','mr','gu','kn','ml','pa','or',
-      'as','ur','ne','sa','mai','sat','ks','kok','sd','doi','mni-Mtei','brx',
+      'hi','ta','te','mr','gu','kn','ml','pa','or',
+      'as','ne','sa','mai','sat','ks','kok','sd','doi','mni-Mtei','brx',
     ]);
 
     // ── Indian languages → Pravahai ──
